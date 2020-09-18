@@ -9,7 +9,6 @@ module Parser.Recoverable exposing
     , getChompedString, chompIf, chompWhile, chompUntil, chompUntilEndOr, mapChompedString
     , withIndent, getIndent
     , getPosition, getRow, getCol, getOffset, getSource
-    , failOnError
     , RecoveryTactic(..), withRecovery
     )
 
@@ -18,7 +17,7 @@ module Parser.Recoverable exposing
 
 # Parsers
 
-@docs Parser, Outcome, try, run, DeadEnd, inContext, Token, OnError
+@docs Parser, Outcome, run, DeadEnd, inContext, Token
 
 ---
 
@@ -38,7 +37,7 @@ certain scenarios.**
 # Pipelines
 
 @docs ignore, keep
-@docs succeed, (|=), (|.), lazy, andThen, problem
+@docs succeed, lazy, andThen, problem
 
 
 # Branches
@@ -73,7 +72,7 @@ certain scenarios.**
 
 # Error Recovery Tactics
 
-@docs failOnError, warnOnError
+@docs RecoveryTactic, withRecovery
 
 -}
 
@@ -121,6 +120,8 @@ mapOutcome fn outcome =
             Failure err
 
 
+{-| The type of recoverable parsers.
+-}
 type Parser context problem value
     = Parser
         (RecoveryTactic problem
@@ -131,6 +132,8 @@ type Parser context problem value
         )
 
 
+{-| The same as in Parser.Advanced.
+-}
 type alias Token x =
     PA.Token x
 
@@ -149,6 +152,8 @@ run (Parser parserFn) input =
             outcome
 
 
+{-| The same as in Parser.Advanced.
+-}
 type alias DeadEnd context problem =
     PA.DeadEnd context problem
 
@@ -356,6 +361,8 @@ sequence =
     PA.sequence
 
 
+{-| The same as in Parser.Advanced.
+-}
 type alias Trailing =
     PA.Trailing
 
@@ -365,6 +372,8 @@ loop state callback =
     Debug.todo "Figure out the parser return type first."
 
 
+{-| The same as in Parser.Advanced.
+-}
 type alias Step state a =
     PA.Step state a
 
@@ -382,6 +391,8 @@ multiComment =
     PA.multiComment
 
 
+{-| The same as in Parser.Advanced.
+-}
 type alias Nestable =
     PA.Nestable
 
@@ -446,6 +457,9 @@ getSource =
 -- Error Recovery Tactics
 
 
+{-| Describes the possible ways the parser should act when it encounters
+something that it cannot parse.
+-}
 type RecoveryTactic x
     = Fail
     | Warn x
