@@ -459,6 +459,14 @@ getSource =
 
 {-| Describes the possible ways the parser should act when it encounters
 something that it cannot parse.
+
+    - `Fail` stop parsing and return a `Failure` outcome.
+    - `Warn` ignore the error, but add a problem and use a `Partial` outcome.
+    - `Ignore` ignore the error and continue with a `Success` outcome.
+    - `ChompForMatch` try chomping to find a matching character. If succesfull
+    add a problem but continue with a `Partial` outcome. If this does not work
+    then `Fail`.
+
 -}
 type RecoveryTactic x
     = Fail
