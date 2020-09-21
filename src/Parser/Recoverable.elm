@@ -510,12 +510,21 @@ mapChompedString func (Parser parser) =
 -- Indentation
 
 
-withIndent =
-    PA.withIndent
-
-
+getIndent : Parser c x Int
 getIndent =
-    PA.getIndent
+    PA.getIndent |> lift
+
+
+withIndent : Int -> Parser c x a -> Parser c x a
+withIndent newIndent (Parser parser) =
+    Parser
+        (\s ->
+            { pa =
+                PA.withIndent newIndent ((parser s).pa |> lower)
+                    |> PA.map Success
+            , onError = s
+            }
+        )
 
 
 
