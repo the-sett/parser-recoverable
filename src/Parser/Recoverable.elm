@@ -519,19 +519,6 @@ type Trailing
     | Mandatory
 
 
-toAdvancedTrailing : Trailing -> PA.Trailing
-toAdvancedTrailing trailing =
-    case trailing of
-        Forbidden ->
-            PA.Forbidden
-
-        Optional ->
-            PA.Optional
-
-        Mandatory ->
-            PA.Mandatory
-
-
 loop : state -> (state -> Parser c x (Step state a)) -> Parser c x a
 loop state callback =
     callback state
