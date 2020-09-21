@@ -1,5 +1,5 @@
 module Parser.Recoverable exposing
-    ( Parser, Outcome(..), run, DeadEnd, inContext, Token
+    ( Parser, run, Outcome(..), DeadEnd, inContext, Token
     , int, float, number, symbol, keyword, variable, end
     , ignore, keep
     , succeed, lazy, andThen, problem
@@ -17,7 +17,7 @@ module Parser.Recoverable exposing
 
 # Parsers
 
-@docs Parser, Outcome, run, DeadEnd, inContext, Token
+@docs Parser, run, Outcome, DeadEnd, inContext, Token
 
 ---
 
@@ -77,6 +77,33 @@ certain scenarios.**
 -}
 
 import Parser.Advanced as PA exposing ((|.), (|=))
+import Set exposing (Set)
+
+
+{-| The type of recoverable parsers.
+-}
+type Parser context problem value
+    = Parser
+        (RecoveryTactic problem
+         ->
+            { pa : PA.Parser context problem (Outcome context problem value)
+            , onError : RecoveryTactic problem
+            }
+        )
+
+
+run : Parser c x a -> String -> Outcome c x a
+run (Parser parserFn) input =
+    let
+        pa =
+            parserFn Fail |> .pa
+    in
+    case PA.run pa input of
+        Err deadEnds ->
+            Failure deadEnds
+
+        Ok outcome ->
+            outcome
 
 
 {-| Describes the possible outcomes from running a parser.
@@ -120,38 +147,6 @@ mapOutcome fn outcome =
             Failure err
 
 
-{-| The type of recoverable parsers.
--}
-type Parser context problem value
-    = Parser
-        (RecoveryTactic problem
-         ->
-            { pa : PA.Parser context problem (Outcome context problem value)
-            , onError : RecoveryTactic problem
-            }
-        )
-
-
-{-| The same as in Parser.Advanced.
--}
-type alias Token x =
-    PA.Token x
-
-
-run : Parser c x a -> String -> Outcome c x a
-run (Parser parserFn) input =
-    let
-        pa =
-            parserFn Fail |> .pa
-    in
-    case PA.run pa input of
-        Err deadEnds ->
-            Failure deadEnds
-
-        Ok outcome ->
-            outcome
-
-
 {-| The same as in Parser.Advanced.
 -}
 type alias DeadEnd context problem =
@@ -168,6 +163,49 @@ inContext ctx (Parser parserFn) =
         )
 
 
+{-| The same as in Parser.Advanced.
+-}
+type alias Token x =
+    PA.Token x
+
+
+
+-- Building Blocks
+
+
+lift parser =
+    Parser
+        (\s ->
+            { pa = parser |> PA.map Success
+            , onError = s
+            }
+        )
+
+
+int : x -> x -> Parser c x Int
+int expecting invalid =
+    PA.int expecting invalid |> lift
+
+
+float : x -> x -> Parser c x Float
+float expecting invalid =
+    PA.float expecting invalid |> lift
+
+
+number :
+    { int : Result x (Int -> a)
+    , hex : Result x (Int -> a)
+    , octal : Result x (Int -> a)
+    , binary : Result x (Int -> a)
+    , float : Result x (Float -> a)
+    , invalid : x
+    , expecting : x
+    }
+    -> Parser c x a
+number numDef =
+    PA.number numDef |> lift
+
+
 symbol : Token x -> Parser c x ()
 symbol details =
     PA.symbol details |> parseWithRecovery ()
@@ -178,20 +216,15 @@ keyword details =
     PA.keyword details |> parseWithRecovery ()
 
 
-int =
-    PA.int
-
-
-float =
-    PA.float
-
-
-number =
-    PA.number
-
-
-variable =
-    PA.variable
+variable :
+    { start : Char -> Bool
+    , inner : Char -> Bool
+    , reserved : Set String
+    , expecting : x
+    }
+    -> Parser c x String
+variable varDef =
+    PA.variable varDef |> lift
 
 
 end : x -> Parser c x ()
@@ -199,22 +232,8 @@ end prob =
     PA.end prob |> parseWithRecovery ()
 
 
-ignore : Parser c x ignore -> Parser c x keep -> Parser c x keep
-ignore ignoreParser keepParser =
-    map2 always keepParser ignoreParser
 
-
-keep : Parser c x a -> Parser c x (a -> b) -> Parser c x b
-keep parseArg parseFunc =
-    map2 (<|) parseFunc parseArg
-
-
-lazy =
-    PA.lazy
-
-
-problem =
-    PA.problem
+-- Pipelines
 
 
 succeed : a -> Parser c x a
@@ -227,12 +246,62 @@ succeed x =
         )
 
 
-backtrackable =
-    PA.backtrackable
+keep : Parser c x a -> Parser c x (a -> b) -> Parser c x b
+keep parseArg parseFunc =
+    map2 (<|) parseFunc parseArg
 
 
-commit =
-    PA.commit
+ignore : Parser c x ignore -> Parser c x keep -> Parser c x keep
+ignore ignoreParser keepParser =
+    map2 always keepParser ignoreParser
+
+
+lazy =
+    PA.lazy
+
+
+andThen : (a -> Parser c x b) -> Parser c x a -> Parser c x b
+andThen fn (Parser pfunA) =
+    Parser
+        (\s0 ->
+            { pa =
+                let
+                    parserA =
+                        pfunA s0
+                in
+                parserA.pa
+                    |> PA.andThen
+                        (\outcomeOfA ->
+                            case outcomeOfA of
+                                Success valA ->
+                                    let
+                                        (Parser parserB) =
+                                            fn valA
+                                    in
+                                    (parserB s0).pa
+
+                                Partial warn valA ->
+                                    let
+                                        (Parser parserB) =
+                                            fn valA
+                                    in
+                                    (parserB s0).pa
+                                        |> PA.map (addWarnings warn)
+
+                                Failure err ->
+                                    PA.succeed (Failure err)
+                        )
+            , onError = s0
+            }
+        )
+
+
+problem =
+    PA.problem
+
+
+
+-- Branches
 
 
 oneOf : x -> List (Parser c x a) -> Parser c x a
@@ -316,45 +385,21 @@ map2 func (Parser pfunA) (Parser pfunB) =
         )
 
 
-andThen : (a -> Parser c x b) -> Parser c x a -> Parser c x b
-andThen fn (Parser pfunA) =
-    Parser
-        (\s0 ->
-            { pa =
-                let
-                    parserA =
-                        pfunA s0
-                in
-                parserA.pa
-                    |> PA.andThen
-                        (\outcomeOfA ->
-                            case outcomeOfA of
-                                Success valA ->
-                                    let
-                                        (Parser parserB) =
-                                            fn valA
-                                    in
-                                    (parserB s0).pa
+backtrackable =
+    PA.backtrackable
 
-                                Partial warn valA ->
-                                    let
-                                        (Parser parserB) =
-                                            fn valA
-                                    in
-                                    (parserB s0).pa
-                                        |> PA.map (addWarnings warn)
 
-                                Failure err ->
-                                    PA.succeed (Failure err)
-                        )
-            , onError = s0
-            }
-        )
+commit =
+    PA.commit
 
 
 token : Token x -> Parser c x ()
 token tok =
     PA.token tok |> parseWithRecovery ()
+
+
+
+-- Loops
 
 
 sequence =
@@ -378,6 +423,10 @@ type alias Step state a =
     PA.Step state a
 
 
+
+-- Whitespace
+
+
 spaces : Parser c x ()
 spaces =
     PA.spaces |> parseWithRecovery ()
@@ -395,6 +444,10 @@ multiComment =
 -}
 type alias Nestable =
     PA.Nestable
+
+
+
+-- Chopmers
 
 
 getChompedString =
@@ -425,12 +478,20 @@ mapChompedString =
     PA.mapChompedString
 
 
+
+-- Indentation
+
+
 withIndent =
     PA.withIndent
 
 
 getIndent =
     PA.getIndent
+
+
+
+-- Positions
 
 
 getPosition =
@@ -466,6 +527,10 @@ something that it cannot parse.
     - `ChompForMatch` try chomping to find a matching character. If succesfull
     add a problem but continue with a `Partial` outcome. If this does not work
     then `Fail`.
+
+TODO: Make the problem builders more sophisticated, by offering the chopmed
+string and anything else an interactive editor might like to know. (Position
+is already available in DeadEnd).
 
 -}
 type RecoveryTactic x
