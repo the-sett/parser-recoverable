@@ -241,8 +241,18 @@ ignore ignoreParser keepParser =
     map2 always keepParser ignoreParser
 
 
-lazy =
-    PA.lazy
+lazy : (() -> Parser c x a) -> Parser c x a
+lazy thunk =
+    Parser
+        (\s ->
+            let
+                (Parser parser) =
+                    thunk ()
+            in
+            { pa = (parser s).pa
+            , onError = s
+            }
+        )
 
 
 andThen : (a -> Parser c x b) -> Parser c x a -> Parser c x b
