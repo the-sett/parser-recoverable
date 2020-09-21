@@ -411,8 +411,23 @@ sequence =
 
 {-| The same as in Parser.Advanced.
 -}
-type alias Trailing =
-    PA.Trailing
+type Trailing
+    = Forbidden
+    | Optional
+    | Mandatory
+
+
+toAdvancedTrailing : Trailing -> PA.Trailing
+toAdvancedTrailing trailing =
+    case trailing of
+        Forbidden ->
+            PA.Forbidden
+
+        Optional ->
+            PA.Optional
+
+        Mandatory ->
+            PA.Mandatory
 
 
 loop : state -> (state -> Parser c x (Step state a)) -> Parser c x a
@@ -422,8 +437,19 @@ loop state callback =
 
 {-| The same as in Parser.Advanced.
 -}
-type alias Step state a =
-    PA.Step state a
+type Step state a
+    = Loop state
+    | Done a
+
+
+toAdvancedStep : Step s a -> PA.Step s a
+toAdvancedStep step =
+    case step of
+        Loop s ->
+            PA.Loop s
+
+        Done a ->
+            PA.Done a
 
 
 
