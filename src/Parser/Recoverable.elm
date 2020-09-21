@@ -1,5 +1,5 @@
 module Parser.Recoverable exposing
-    ( Parser, run, Outcome(..), DeadEnd, inContext, Token
+    ( Parser, run, Outcome(..), DeadEnd, inContext
     , int, float, number, symbol, keyword, variable, end
     , ignore, keep
     , succeed, lazy, andThen, problem
@@ -163,12 +163,6 @@ inContext ctx (Parser parserFn) =
         )
 
 
-{-| The same as in Parser.Advanced.
--}
-type alias Token x =
-    PA.Token x
-
-
 
 -- Building Blocks
 
@@ -206,14 +200,14 @@ number numDef =
     PA.number numDef |> lift
 
 
-symbol : Token x -> Parser c x ()
-symbol details =
-    PA.symbol details |> parseWithRecovery ()
+symbol : String -> x -> Parser c x ()
+symbol match prob =
+    PA.Token match prob |> PA.symbol |> parseWithRecovery ()
 
 
-keyword : Token x -> Parser c x ()
-keyword details =
-    PA.keyword details |> parseWithRecovery ()
+keyword : String -> x -> Parser c x ()
+keyword match prob =
+    PA.Token match prob |> PA.keyword |> parseWithRecovery ()
 
 
 variable :
@@ -393,9 +387,9 @@ commit =
     PA.commit
 
 
-token : Token x -> Parser c x ()
-token tok =
-    PA.token tok |> parseWithRecovery ()
+token : String -> x -> Parser c x ()
+token match prob =
+    PA.Token match prob |> PA.token |> parseWithRecovery ()
 
 
 
@@ -464,9 +458,9 @@ chompWhile whileFn =
     PA.chompWhile whileFn |> parseWithRecovery ()
 
 
-chompUntil : Token x -> Parser c x ()
-chompUntil tok =
-    PA.chompUntil tok |> parseWithRecovery ()
+chompUntil : String -> x -> Parser c x ()
+chompUntil match prob =
+    PA.Token match prob |> PA.chompUntil |> parseWithRecovery ()
 
 
 chompUntilEndOr : String -> Parser c x ()
