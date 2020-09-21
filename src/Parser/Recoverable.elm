@@ -531,24 +531,29 @@ withIndent newIndent (Parser parser) =
 -- Positions
 
 
+getPosition : Parser c x ( Int, Int )
 getPosition =
-    PA.getPosition
+    PA.getPosition |> lift
 
 
+getRow : Parser c x Int
 getRow =
-    PA.getRow
+    PA.getRow |> lift
 
 
+getCol : Parser c x Int
 getCol =
-    PA.getCol
+    PA.getCol |> lift
 
 
+getOffset : Parser c x Int
 getOffset =
-    PA.getOffset
+    PA.getOffset |> lift
 
 
+getSource : Parser c x String
 getSource =
-    PA.getSource
+    PA.getSource |> lift
 
 
 
