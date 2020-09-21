@@ -435,18 +435,34 @@ spaces =
     PA.spaces |> liftWithRecovery ()
 
 
-lineComment =
-    PA.lineComment
+lineComment : String -> x -> Parser c x ()
+lineComment match prob =
+    PA.Token match prob |> PA.lineComment |> lift
 
 
-multiComment =
+multiComment : String -> x -> String -> x -> Nestable -> Parser c x ()
+multiComment open openProb close closeProb nestable =
+    let
+        mappedNestable =
+            case nestable of
+                NotNestable ->
+                    PA.NotNestable
+
+                Nestable ->
+                    PA.Nestable
+    in
     PA.multiComment
+        (PA.Token open openProb)
+        (PA.Token close closeProb)
+        mappedNestable
+        |> lift
 
 
 {-| The same as in Parser.Advanced.
 -}
-type alias Nestable =
-    PA.Nestable
+type Nestable
+    = NotNestable
+    | Nestable
 
 
 
