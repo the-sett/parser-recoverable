@@ -231,6 +231,11 @@ succeed x =
         )
 
 
+problem : x -> Parser c x a
+problem x =
+    PA.problem x |> lift
+
+
 keep : Parser c x a -> Parser c x (a -> b) -> Parser c x b
 keep parseArg parseFunc =
     map2 (<|) parseFunc parseArg
@@ -289,10 +294,6 @@ andThen fn (Parser pfunA) =
             , onError = s0
             }
         )
-
-
-problem =
-    PA.problem
 
 
 
