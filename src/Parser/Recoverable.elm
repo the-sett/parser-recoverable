@@ -469,8 +469,9 @@ type Nestable
 -- Chopmers
 
 
-getChompedString =
-    PA.getChompedString
+getChompedString : Parser c x a -> Parser c x String
+getChompedString parser =
+    mapChompedString always parser
 
 
 chompIf : (Char -> Bool) -> x -> Parser c x ()
@@ -493,8 +494,16 @@ chompUntilEndOr val =
     PA.chompUntilEndOr val |> liftWithRecovery ()
 
 
-mapChompedString =
-    PA.mapChompedString
+mapChompedString : (String -> a -> b) -> Parser c x a -> Parser c x b
+mapChompedString func (Parser parser) =
+    Parser
+        (\s ->
+            { pa =
+                PA.mapChompedString func ((parser s).pa |> lower)
+                    |> PA.map Success
+            , onError = s
+            }
+        )
 
 
 
@@ -661,6 +670,25 @@ chompForMatchOrSkipOnError val matches prob parser =
 
 
 -- Helpers
+
+
+lower : PA.Parser c x (Outcome c x a) -> PA.Parser c x a
+lower parser =
+    parser
+        |> PA.andThen
+            (\outcome ->
+                case outcome of
+                    Success val ->
+                        PA.succeed val
+
+                    Partial deadEnds val ->
+                        --PA.problem
+                        Debug.todo "lower Partial"
+
+                    Failure deadEnds ->
+                        --PA.problem
+                        Debug.todo "lower Failure"
+            )
 
 
 lift : PA.Parser c x a -> Parser c x a
