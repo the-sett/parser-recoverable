@@ -73,18 +73,32 @@ main =
 
 
 type AST
-    = ParsedSuccesfully
+    = ParsedOk (List Int)
 
 
 type Problem
     = StartBrace
     | EndBrace
+    | Comma
+    | ExpectingInt
+    | InvalidNumber
     | Recovered String
 
 
 parser : Parser Never Problem AST
 parser =
-    PR.succeed ParsedSuccesfully
-        |> PR.ignore (PR.symbol "(" StartBrace)
-        |> PR.ignore (PR.symbol ")" EndBrace)
-        |> PR.forwardOrSkip [ ')' ] Recovered
+    PR.succeed ParsedOk
+        |> PR.keep
+            (PR.sequence
+                { start = ( "(", StartBrace )
+                , end = ( ")", EndBrace )
+                , separator = ( ",", Comma )
+                , spaces = PR.spaces
+                , item = PR.int ExpectingInt InvalidNumber
+                , trailing = PR.Mandatory
+                }
+            )
+
+
+
+-- |> PR.forwardOrSkip [ ')' ] Recovered

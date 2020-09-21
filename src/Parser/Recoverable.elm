@@ -4,8 +4,8 @@ module Parser.Recoverable exposing
     , ignore, keep
     , succeed, lazy, andThen, problem
     , oneOf, map, backtrackable, commit, token
-    , sequence, Trailing, loop, Step
-    , spaces, lineComment, multiComment, Nestable
+    , sequence, Trailing(..), loop, Step(..)
+    , spaces, lineComment, multiComment, Nestable(..)
     , getChompedString, chompIf, chompWhile, chompUntil, chompUntilEndOr, mapChompedString
     , withIndent, getIndent
     , getPosition, getRow, getCol, getOffset, getSource
@@ -436,8 +436,8 @@ sequence seqDef =
             token match prob
     in
     sequenceEnd (tokenParser seqDef.end) seqDef.spaces seqDef.item (tokenParser seqDef.separator) seqDef.trailing
-        |> ignore (tokenParser seqDef.start)
         |> ignore seqDef.spaces
+        |> ignore (tokenParser seqDef.start)
 
 
 sequenceEnd : Parser c x () -> Parser c x () -> Parser c x a -> Parser c x () -> Trailing -> Parser c x (List a)
