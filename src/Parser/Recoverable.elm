@@ -167,15 +167,6 @@ inContext ctx (Parser parserFn) =
 -- Building Blocks
 
 
-lift parser =
-    Parser
-        (\s ->
-            { pa = parser |> PA.map Success
-            , onError = s
-            }
-        )
-
-
 int : x -> x -> Parser c x Int
 int expecting invalid =
     PA.int expecting invalid |> lift
@@ -202,12 +193,12 @@ number numDef =
 
 symbol : String -> x -> Parser c x ()
 symbol match prob =
-    PA.Token match prob |> PA.symbol |> parseWithRecovery ()
+    PA.Token match prob |> PA.symbol |> liftWithRecovery ()
 
 
 keyword : String -> x -> Parser c x ()
 keyword match prob =
-    PA.Token match prob |> PA.keyword |> parseWithRecovery ()
+    PA.Token match prob |> PA.keyword |> liftWithRecovery ()
 
 
 variable :
@@ -223,7 +214,7 @@ variable varDef =
 
 end : x -> Parser c x ()
 end prob =
-    PA.end prob |> parseWithRecovery ()
+    PA.end prob |> liftWithRecovery ()
 
 
 
@@ -389,7 +380,7 @@ commit =
 
 token : String -> x -> Parser c x ()
 token match prob =
-    PA.Token match prob |> PA.token |> parseWithRecovery ()
+    PA.Token match prob |> PA.token |> liftWithRecovery ()
 
 
 
@@ -423,7 +414,7 @@ type alias Step state a =
 
 spaces : Parser c x ()
 spaces =
-    PA.spaces |> parseWithRecovery ()
+    PA.spaces |> liftWithRecovery ()
 
 
 lineComment =
@@ -450,22 +441,22 @@ getChompedString =
 
 chompIf : (Char -> Bool) -> x -> Parser c x ()
 chompIf fn prob =
-    PA.chompIf fn prob |> parseWithRecovery ()
+    PA.chompIf fn prob |> liftWithRecovery ()
 
 
 chompWhile : (Char -> Bool) -> Parser c x ()
 chompWhile whileFn =
-    PA.chompWhile whileFn |> parseWithRecovery ()
+    PA.chompWhile whileFn |> liftWithRecovery ()
 
 
 chompUntil : String -> x -> Parser c x ()
 chompUntil match prob =
-    PA.Token match prob |> PA.chompUntil |> parseWithRecovery ()
+    PA.Token match prob |> PA.chompUntil |> liftWithRecovery ()
 
 
 chompUntilEndOr : String -> Parser c x ()
 chompUntilEndOr val =
-    PA.chompUntilEndOr val |> parseWithRecovery ()
+    PA.chompUntilEndOr val |> liftWithRecovery ()
 
 
 mapChompedString =
@@ -561,31 +552,6 @@ silent parser =
     Ignore |> withRecovery parser
 
 
-parseWithRecovery : a -> PA.Parser c x a -> Parser c x a
-parseWithRecovery val parser =
-    Parser
-        (\s ->
-            { pa =
-                case s of
-                    Fail ->
-                        failOnError parser
-
-                    Warn err ->
-                        warnOnError val err parser
-
-                    Ignore ->
-                        ignoreError val parser
-
-                    ChompForMatch matches errFn ->
-                        chompForMatchOnError val matches errFn parser
-
-                    ChompForMatchOrSkip matches errFn ->
-                        chompForMatchOrSkipOnError val matches errFn parser
-            , onError = s
-            }
-        )
-
-
 {-| Runs a `Parser.Advanced.Parser` in the normal way. If it fails, parsing
 stops with an error.
 -}
@@ -661,6 +627,41 @@ chompForMatchOrSkipOnError val matches prob parser =
 
 
 -- Helpers
+
+
+lift : PA.Parser c x a -> Parser c x a
+lift parser =
+    Parser
+        (\s ->
+            { pa = parser |> PA.map Success
+            , onError = s
+            }
+        )
+
+
+liftWithRecovery : a -> PA.Parser c x a -> Parser c x a
+liftWithRecovery val parser =
+    Parser
+        (\s ->
+            { pa =
+                case s of
+                    Fail ->
+                        failOnError parser
+
+                    Warn err ->
+                        warnOnError val err parser
+
+                    Ignore ->
+                        ignoreError val parser
+
+                    ChompForMatch matches errFn ->
+                        chompForMatchOnError val matches errFn parser
+
+                    ChompForMatchOrSkip matches errFn ->
+                        chompForMatchOrSkipOnError val matches errFn parser
+            , onError = s
+            }
+        )
 
 
 chompTill : List Char -> (String -> x) -> PA.Parser c x ( Bool, String, ( Int, Int ) )

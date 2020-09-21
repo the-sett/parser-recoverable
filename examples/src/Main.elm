@@ -77,8 +77,7 @@ type AST
 
 
 type Problem
-    = Problem
-    | StartBrace
+    = StartBrace
     | EndBrace
     | Recovered String
 
@@ -88,12 +87,4 @@ parser =
     PR.succeed ParsedSuccesfully
         |> PR.ignore (PR.symbol "(" StartBrace)
         |> PR.ignore (PR.symbol ")" EndBrace)
-        |> PR.ignore (PR.symbol ")" EndBrace)
         |> PR.forwardOrSkip [ ')' ] Recovered
-
-
-
---|> PR.ignore (PA.Token ")" EndBrace |> PR.symbol |> PR.withRecovery (PR.ChompForMatch [ ')' ] EndBrace))
---|> PR.ignore (PA.Token ")" EndBrace |> PR.symbol |> PR.withRecovery PR.Ignore)
---|> PR.ignore (PA.Token ")" EndBrace |> PR.symbol |> PR.withRecovery (PR.Warn EndBrace))
---|> PR.ignore (PA.Token ")" EndBrace |> PR.symbol |> PR.withRecovery PR.Fail)
