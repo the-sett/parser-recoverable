@@ -5316,9 +5316,9 @@ var $elm$browser$Browser$sandbox = function (impl) {
 			view: impl.view
 		});
 };
-var $author$project$Parser$Recoverable$ChompForMatch = F2(
+var $author$project$Parser$Recoverable$ChompForMatchOrSkip = F2(
 	function (a, b) {
-		return {$: 'ChompForMatch', a: a, b: b};
+		return {$: 'ChompForMatchOrSkip', a: a, b: b};
 	});
 var $author$project$Main$EndBrace = {$: 'EndBrace'};
 var $author$project$Main$ParsedSuccesfully = {$: 'ParsedSuccesfully'};
@@ -5823,6 +5823,23 @@ var $author$project$Parser$Recoverable$chompForMatchOnError = F4(
 					A2($author$project$Parser$Recoverable$chompTill, matches, prob))
 				]));
 	});
+var $author$project$Parser$Recoverable$chompForMatchOrSkipOnError = F4(
+	function (val, matches, prob, parser) {
+		return $elm$parser$Parser$Advanced$oneOf(
+			_List_fromArray(
+				[
+					A2($elm$parser$Parser$Advanced$map, $author$project$Parser$Recoverable$Success, parser),
+					A2(
+					$elm$parser$Parser$Advanced$andThen,
+					function (_v0) {
+						var foundMatch = _v0.a;
+						var chompedString = _v0.b;
+						var pos = _v0.c;
+						return foundMatch ? A3($author$project$Parser$Recoverable$partialAt, pos, val, prob) : A3($author$project$Parser$Recoverable$partialAt, pos, val, prob);
+					},
+					A2($author$project$Parser$Recoverable$chompTill, matches, prob))
+				]));
+	});
 var $author$project$Parser$Recoverable$failOnError = function (parser) {
 	return A2($elm$parser$Parser$Advanced$map, $author$project$Parser$Recoverable$Success, parser);
 };
@@ -5878,10 +5895,14 @@ var $author$project$Parser$Recoverable$parseWithRecovery = F2(
 								return A3($author$project$Parser$Recoverable$warnOnError, val, err, parser);
 							case 'Ignore':
 								return A2($author$project$Parser$Recoverable$ignoreError, val, parser);
-							default:
+							case 'ChompForMatch':
 								var matches = s.a;
 								var err = s.b;
 								return A4($author$project$Parser$Recoverable$chompForMatchOnError, val, matches, err, parser);
+							default:
+								var matches = s.a;
+								var err = s.b;
+								return A4($author$project$Parser$Recoverable$chompForMatchOrSkipOnError, val, matches, err, parser);
 						}
 					}()
 				};
@@ -5928,7 +5949,7 @@ var $author$project$Main$parser = A2(
 	A2(
 		$author$project$Parser$Recoverable$withRecovery,
 		A2(
-			$author$project$Parser$Recoverable$ChompForMatch,
+			$author$project$Parser$Recoverable$ChompForMatchOrSkip,
 			_List_fromArray(
 				[
 					_Utils_chr(')')

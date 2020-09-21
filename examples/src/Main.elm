@@ -86,10 +86,11 @@ parser : Parser Never Problem AST
 parser =
     PR.succeed ParsedSuccesfully
         |> PR.ignore (PA.Token "(" StartBrace |> PR.symbol)
-        |> PR.ignore (PA.Token ")" EndBrace |> PR.symbol |> PR.withRecovery (PR.ChompForMatch [ ')' ] EndBrace))
+        |> PR.ignore (PA.Token ")" EndBrace |> PR.symbol |> PR.withRecovery (PR.ChompForMatchOrSkip [ ')' ] EndBrace))
 
 
 
+--|> PR.ignore (PA.Token ")" EndBrace |> PR.symbol |> PR.withRecovery (PR.ChompForMatch [ ')' ] EndBrace))
 --|> PR.ignore (PA.Token ")" EndBrace |> PR.symbol |> PR.withRecovery PR.Ignore)
 --|> PR.ignore (PA.Token ")" EndBrace |> PR.symbol |> PR.withRecovery (PR.Warn EndBrace))
 --|> PR.ignore (PA.Token ")" EndBrace |> PR.symbol |> PR.withRecovery PR.Fail)

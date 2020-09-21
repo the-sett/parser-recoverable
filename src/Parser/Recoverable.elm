@@ -535,9 +535,10 @@ is already available in DeadEnd).
 -}
 type RecoveryTactic x
     = Fail
-    | Warn x
-    | Ignore
+    | Warn x -- Skip
     | ChompForMatch (List Char) x
+    | ChompForMatchOrSkip (List Char) x
+    | Ignore
 
 
 withRecovery : RecoveryTactic x -> Parser c x a -> Parser c x a
@@ -602,6 +603,22 @@ chompForMatchOnError val matches prob parser =
         ]
 
 
+chompForMatchOrSkipOnError : a -> List Char -> x -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
+chompForMatchOrSkipOnError val matches prob parser =
+    PA.oneOf
+        [ PA.map Success parser
+        , chompTill matches prob
+            |> PA.andThen
+                (\( foundMatch, chompedString, pos ) ->
+                    if foundMatch then
+                        partialAt pos val prob
+
+                    else
+                        partialAt pos val prob
+                )
+        ]
+
+
 parseWithRecovery : a -> PA.Parser c x a -> Parser c x a
 parseWithRecovery val parser =
     Parser
@@ -619,6 +636,9 @@ parseWithRecovery val parser =
 
                     ChompForMatch matches err ->
                         chompForMatchOnError val matches err parser
+
+                    ChompForMatchOrSkip matches err ->
+                        chompForMatchOrSkipOnError val matches err parser
             , onError = s
             }
         )
