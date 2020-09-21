@@ -432,7 +432,16 @@ toAdvancedTrailing trailing =
 
 loop : state -> (state -> Parser c x (Step state a)) -> Parser c x a
 loop state callback =
-    Debug.todo "Figure out the parser return type first."
+    callback state
+        |> andThen
+            (\nextStep ->
+                case nextStep of
+                    Loop nextState ->
+                        loop nextState callback
+
+                    Done val ->
+                        succeed val
+            )
 
 
 {-| The same as in Parser.Advanced.
