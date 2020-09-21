@@ -87,10 +87,9 @@ parser : Parser Never Problem AST
 parser =
     PR.succeed ParsedSuccesfully
         |> PR.ignore (PR.symbol "(" StartBrace)
-        |> PR.ignore
-            (PR.symbol ")" EndBrace
-                |> PR.forwardOrSkip [ ')' ] Recovered
-            )
+        |> PR.ignore (PR.symbol ")" EndBrace)
+        |> PR.ignore (PR.symbol ")" EndBrace)
+        |> PR.forwardOrSkip [ ')' ] Recovered
 
 
 
