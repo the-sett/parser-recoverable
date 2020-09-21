@@ -381,12 +381,19 @@ map2 func (Parser pfunA) (Parser pfunB) =
         )
 
 
-backtrackable =
-    PA.backtrackable
+backtrackable : Parser c x a -> Parser c x a
+backtrackable (Parser parser) =
+    Parser
+        (\s ->
+            { pa = PA.backtrackable (parser s).pa
+            , onError = s
+            }
+        )
 
 
-commit =
-    PA.commit
+commit : a -> Parser c x a
+commit val =
+    PA.commit val |> lift
 
 
 token : String -> x -> Parser c x ()
