@@ -298,28 +298,44 @@ andThen fn (Parser pfunA) =
 
 
 -- Branches
+--
+-- oneOf that always succeeds, but with Failure - is this really necessary?
+-- oneOf : x -> List (Parser c x a) -> Parser c x a
+-- oneOf prob options =
+--     Parser
+--         (\s ->
+--             { pa =
+--                 PA.oneOf
+--                     (List.foldr
+--                         (\(Parser tryParserFn) accum -> (tryParserFn s).pa :: accum)
+--                         [ PA.succeed
+--                             (\( row, col ) ->
+--                                 Failure
+--                                     [ { row = row
+--                                       , col = col
+--                                       , problem = prob
+--                                       , contextStack = []
+--                                       }
+--                                     ]
+--                             )
+--                             |= PA.getPosition
+--                         ]
+--                         options
+--                     )
+--             , onError = s
+--             }
+--         )
 
 
-oneOf : x -> List (Parser c x a) -> Parser c x a
-oneOf prob options =
+oneOf : List (Parser c x a) -> Parser c x a
+oneOf options =
     Parser
         (\s ->
             { pa =
                 PA.oneOf
                     (List.foldr
                         (\(Parser tryParserFn) accum -> (tryParserFn s).pa :: accum)
-                        [ PA.succeed
-                            (\( row, col ) ->
-                                Failure
-                                    [ { row = row
-                                      , col = col
-                                      , problem = prob
-                                      , contextStack = []
-                                      }
-                                    ]
-                            )
-                            |= PA.getPosition
-                        ]
+                        []
                         options
                     )
             , onError = s
@@ -405,8 +421,94 @@ token match prob =
 -- Loops
 
 
-sequence =
-    PA.sequence
+sequence :
+    { start : ( String, x )
+    , separator : ( String, x )
+    , end : ( String, x )
+    , spaces : Parser c x ()
+    , item : Parser c x a
+    , trailing : Trailing
+    }
+    -> Parser c x (List a)
+sequence seqDef =
+    let
+        tokenParser ( match, prob ) =
+            token match prob
+    in
+    sequenceEnd (tokenParser seqDef.end) seqDef.spaces seqDef.item (tokenParser seqDef.separator) seqDef.trailing
+        |> ignore (tokenParser seqDef.start)
+        |> ignore seqDef.spaces
+
+
+sequenceEnd : Parser c x () -> Parser c x () -> Parser c x a -> Parser c x () -> Trailing -> Parser c x (List a)
+sequenceEnd ender ws parseItem sep trailing =
+    let
+        chompRest item =
+            case trailing of
+                Forbidden ->
+                    loop [ item ] (sequenceEndForbidden ender ws parseItem sep)
+
+                Optional ->
+                    loop [ item ] (sequenceEndOptional ender ws parseItem sep)
+
+                Mandatory ->
+                    ignorer
+                        (ignore ws <|
+                            ignore sep <|
+                                ignore ws <|
+                                    loop [ item ] (sequenceEndMandatory ws parseItem sep)
+                        )
+                        ender
+    in
+    oneOf
+        [ parseItem |> andThen chompRest
+        , ender |> map (\_ -> [])
+        ]
+
+
+sequenceEndForbidden : Parser c x () -> Parser c x () -> Parser c x a -> Parser c x () -> List a -> Parser c x (Step (List a) (List a))
+sequenceEndForbidden ender ws parseItem sep revItems =
+    let
+        chompRest item =
+            sequenceEndForbidden ender ws parseItem sep (item :: revItems)
+    in
+    ignore ws <|
+        oneOf
+            [ ignore sep <| ignore ws <| map (\item -> Loop (item :: revItems)) parseItem
+            , ender |> map (\_ -> Done (List.reverse revItems))
+            ]
+
+
+sequenceEndOptional : Parser c x () -> Parser c x () -> Parser c x a -> Parser c x () -> List a -> Parser c x (Step (List a) (List a))
+sequenceEndOptional ender ws parseItem sep revItems =
+    let
+        parseEnd =
+            map (\_ -> Done (List.reverse revItems)) ender
+    in
+    ignore ws <|
+        oneOf
+            [ ignore sep <|
+                ignore ws <|
+                    oneOf
+                        [ parseItem |> map (\item -> Loop (item :: revItems))
+                        , parseEnd
+                        ]
+            , parseEnd
+            ]
+
+
+sequenceEndMandatory : Parser c x () -> Parser c x a -> Parser c x () -> List a -> Parser c x (Step (List a) (List a))
+sequenceEndMandatory ws parseItem sep revItems =
+    oneOf
+        [ map (\item -> Loop (item :: revItems)) <|
+            ignorer parseItem (ignorer ws (ignorer sep ws))
+        , map (\_ -> Done (List.reverse revItems)) (succeed ())
+        ]
+
+
+ignorer : Parser c x keep -> Parser c x ignore -> Parser c x keep
+ignorer keepParser ignoreParser =
+    ignore ignoreParser keepParser
 
 
 {-| The same as in Parser.Advanced.
