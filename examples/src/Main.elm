@@ -89,7 +89,7 @@ parser =
         |> PR.ignore (PR.symbol "(" StartBrace)
         |> PR.ignore
             (PR.symbol ")" EndBrace
-                |> PR.withRecovery (PR.ChompForMatchOrSkip [ ')' ] Recovered)
+                |> PR.forwardOrSkip [ ')' ] Recovered
             )
 
 

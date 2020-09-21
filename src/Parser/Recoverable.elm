@@ -9,7 +9,7 @@ module Parser.Recoverable exposing
     , getChompedString, chompIf, chompWhile, chompUntil, chompUntilEndOr, mapChompedString
     , withIndent, getIndent
     , getPosition, getRow, getCol, getOffset, getSource
-    , RecoveryTactic(..), withRecovery
+    , fail, skip, forward, forwardOrSkip, silent
     )
 
 {-|
@@ -72,7 +72,7 @@ certain scenarios.**
 
 # Error Recovery Tactics
 
-@docs RecoveryTactic, withRecovery
+@docs fail, skip, forward, forwardOrSkip, silent
 
 -}
 
@@ -522,10 +522,6 @@ something that it cannot parse.
     add a problem but continue with a `Partial` outcome. If this does not work
     then `Fail`.
 
-TODO: Make the problem builders more sophisticated, by offering the chopmed
-string and anything else an interactive editor might like to know. (Position
-is already available in DeadEnd).
-
 -}
 type RecoveryTactic x
     = Fail
@@ -535,9 +531,59 @@ type RecoveryTactic x
     | Ignore
 
 
-withRecovery : RecoveryTactic x -> Parser c x a -> Parser c x a
-withRecovery tactic (Parser parser) =
+withRecovery : Parser c x a -> RecoveryTactic x -> Parser c x a
+withRecovery (Parser parser) tactic =
     Parser (\_ -> parser tactic)
+
+
+fail : Parser c x a -> Parser c x a
+fail parser =
+    Fail |> withRecovery parser
+
+
+skip : x -> Parser c x a -> Parser c x a
+skip prob parser =
+    Warn prob |> withRecovery parser
+
+
+forward : List Char -> (String -> x) -> Parser c x a -> Parser c x a
+forward matches probFn parser =
+    ChompForMatch matches probFn |> withRecovery parser
+
+
+forwardOrSkip : List Char -> (String -> x) -> Parser c x a -> Parser c x a
+forwardOrSkip matches probFn parser =
+    ChompForMatchOrSkip matches probFn |> withRecovery parser
+
+
+silent : Parser c x a -> Parser c x a
+silent parser =
+    Ignore |> withRecovery parser
+
+
+parseWithRecovery : a -> PA.Parser c x a -> Parser c x a
+parseWithRecovery val parser =
+    Parser
+        (\s ->
+            { pa =
+                case s of
+                    Fail ->
+                        failOnError parser
+
+                    Warn err ->
+                        warnOnError val err parser
+
+                    Ignore ->
+                        ignoreError val parser
+
+                    ChompForMatch matches errFn ->
+                        chompForMatchOnError val matches errFn parser
+
+                    ChompForMatchOrSkip matches errFn ->
+                        chompForMatchOrSkipOnError val matches errFn parser
+            , onError = s
+            }
+        )
 
 
 {-| Runs a `Parser.Advanced.Parser` in the normal way. If it fails, parsing
@@ -611,31 +657,6 @@ chompForMatchOrSkipOnError val matches prob parser =
                         partialAt pos val (prob chompedString)
                 )
         ]
-
-
-parseWithRecovery : a -> PA.Parser c x a -> Parser c x a
-parseWithRecovery val parser =
-    Parser
-        (\s ->
-            { pa =
-                case s of
-                    Fail ->
-                        failOnError parser
-
-                    Warn err ->
-                        warnOnError val err parser
-
-                    Ignore ->
-                        ignoreError val parser
-
-                    ChompForMatch matches errFn ->
-                        chompForMatchOnError val matches errFn parser
-
-                    ChompForMatchOrSkip matches errFn ->
-                        chompForMatchOrSkipOnError val matches errFn parser
-            , onError = s
-            }
-        )
 
 
 
