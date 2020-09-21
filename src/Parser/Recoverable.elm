@@ -451,16 +451,6 @@ type Step state a
     | Done a
 
 
-toAdvancedStep : Step s a -> PA.Step s a
-toAdvancedStep step =
-    case step of
-        Loop s ->
-            PA.Loop s
-
-        Done a ->
-            PA.Done a
-
-
 
 -- Whitespace
 
