@@ -536,8 +536,8 @@ is already available in DeadEnd).
 type RecoveryTactic x
     = Fail
     | Warn x -- Skip
-    | ChompForMatch (List Char) x
-    | ChompForMatchOrSkip (List Char) x
+    | ChompForMatch (List Char) (String -> x)
+    | ChompForMatchOrSkip (List Char) (String -> x)
     | Ignore
 
 
@@ -587,7 +587,7 @@ Did not find the token, but chomped for recovery ok. Warn error, no data.
 Did not find the token and failed to chomp for recovery. Normal error.
 
 -}
-chompForMatchOnError : a -> List Char -> x -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
+chompForMatchOnError : a -> List Char -> (String -> x) -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
 chompForMatchOnError val matches prob parser =
     PA.oneOf
         [ PA.map Success parser
@@ -595,15 +595,15 @@ chompForMatchOnError val matches prob parser =
             |> PA.andThen
                 (\( foundMatch, chompedString, pos ) ->
                     if foundMatch then
-                        partialAt pos val prob
+                        partialAt pos val (prob chompedString)
 
                     else
-                        failureAt pos prob
+                        failureAt pos (prob "")
                 )
         ]
 
 
-chompForMatchOrSkipOnError : a -> List Char -> x -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
+chompForMatchOrSkipOnError : a -> List Char -> (String -> x) -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
 chompForMatchOrSkipOnError val matches prob parser =
     PA.oneOf
         [ PA.map Success parser
@@ -611,10 +611,10 @@ chompForMatchOrSkipOnError val matches prob parser =
             |> PA.andThen
                 (\( foundMatch, chompedString, pos ) ->
                     if foundMatch then
-                        partialAt pos val prob
+                        partialAt pos val (prob chompedString)
 
                     else
-                        partialAt pos val prob
+                        partialAt pos val (prob chompedString)
                 )
         ]
 
@@ -634,11 +634,11 @@ parseWithRecovery val parser =
                     Ignore ->
                         ignoreError val parser
 
-                    ChompForMatch matches err ->
-                        chompForMatchOnError val matches err parser
+                    ChompForMatch matches errFn ->
+                        chompForMatchOnError val matches errFn parser
 
-                    ChompForMatchOrSkip matches err ->
-                        chompForMatchOrSkipOnError val matches err parser
+                    ChompForMatchOrSkip matches errFn ->
+                        chompForMatchOrSkipOnError val matches errFn parser
             , onError = s
             }
         )
@@ -648,7 +648,7 @@ parseWithRecovery val parser =
 -- Helpers
 
 
-chompTill : List Char -> x -> PA.Parser c x ( Bool, String, ( Int, Int ) )
+chompTill : List Char -> (String -> x) -> PA.Parser c x ( Bool, String, ( Int, Int ) )
 chompTill chars prob =
     PA.succeed (\pos val flag -> ( flag, val, pos ))
         |= PA.getPosition
@@ -657,7 +657,7 @@ chompTill chars prob =
            )
         |= PA.oneOf
             [ PA.map (always True)
-                (PA.chompIf (\c -> List.member (Debug.log "matched" c) chars) prob)
+                (PA.chompIf (\c -> List.member (Debug.log "matched" c) chars) (prob ""))
             , PA.succeed False
             ]
 
