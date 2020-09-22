@@ -19,20 +19,20 @@ module Main exposing (main)
 import Browser
 import Html exposing (Html, button, div, text)
 import Html.Events exposing (onClick, onInput)
-import Parser.Advanced as PA
-import Parser.Recoverable as PR exposing (Outcome(..), Parser)
+import Parser.Advanced as PA exposing ((|.), (|=))
+import Parser.Recoverable as PR exposing (Outcome(..))
 
 
 type alias Model =
     { input : String
-    , parsed : Outcome Never Problem AST
+    , parsed : Result (List (PA.DeadEnd Never Problem)) AST
     }
 
 
 initialModel : Model
 initialModel =
     { input = ""
-    , parsed = Failure []
+    , parsed = Err []
     }
 
 
@@ -46,7 +46,7 @@ update msg model =
         NewInput val ->
             { model
                 | input = val
-                , parsed = PR.run parser val
+                , parsed = PA.run parser val
             }
 
 
@@ -99,30 +99,90 @@ type Problem
 --                 , trailing = PR.Mandatory
 --                 }
 --             )
+--
+--
+--
+-- parser : PR.Parser Never Problem AST
+-- parser =
+--     PR.succeed ParsedOk
+--         |> PR.keep
+--             (PR.loop []
+--                 (\vals ->
+--                     PR.succeed
+--                         (\val ->
+--                             if List.length vals < 2 then
+--                                 val :: vals |> PR.Loop
+--
+--                             else
+--                                 val :: vals |> PR.Done
+--                         )
+--                         |> PR.ignore PR.spaces
+--                         |> PR.keep (PR.int ExpectingInt InvalidNumber)
+--                         |> PR.ignore PR.spaces
+--                         |> PR.forwardThenRetry [ ',' ] Recovered
+--                         |> PR.ignore (PR.symbol "," ExpectingComma)
+--                 )
+--             )
 
 
-parser : Parser Never Problem AST
+parser : PA.Parser Never Problem AST
 parser =
-    PR.succeed ParsedOk
-        |> PR.keep
-            (PR.loop []
-                (\vals ->
-                    PR.succeed
-                        (\val ->
-                            if List.length vals < 2 then
-                                val :: vals |> PR.Loop
+    PA.succeed ParsedOk
+        |= PA.loop []
+            (\vals ->
+                PA.succeed
+                    (\val ->
+                        if List.length vals < 2 then
+                            val :: vals |> PA.Loop
 
-                            else
-                                val :: vals |> PR.Done
+                        else
+                            val :: vals |> PA.Done
+                    )
+                    |= ((PA.succeed identity
+                            |. PA.spaces
+                            |= PA.int ExpectingInt InvalidNumber
+                            |. PA.spaces
+                            |. PA.symbol (PA.Token "," ExpectingComma)
                         )
-                        |> PR.ignore PR.spaces
-                        |> PR.keep (PR.int ExpectingInt InvalidNumber)
-                        |> PR.ignore PR.spaces
-                        |> PR.ignore (PR.symbol "," ExpectingComma)
-                        |> PR.forwardThenRetry [ ',' ] Recovered
-                )
+                            |> forwardThenRetry [ ',' ] Recovered
+                       )
             )
 
 
+{-| Nailed it
+-}
+forwardThenRetry : List Char -> (String -> x) -> PA.Parser c x a -> PA.Parser c x a
+forwardThenRetry matches probFn parsr =
+    PA.loop ()
+        (\_ ->
+            PA.oneOf
+                [ PA.succeed (\val -> val |> PA.Done)
+                    |= PA.backtrackable parsr
+                , chompTill matches probFn
+                    |> PA.andThen
+                        (\( foundMatch, chompedString, ( row, col ) ) ->
+                            if chompedString == "" then
+                                PA.problem (probFn "")
+                                --    |> PA.Done
+                                --
 
--- |> PR.forwardOrSkip [ ')' ] Recovered
+                            else
+                                PA.Loop ()
+                                    |> PA.succeed
+                        )
+                ]
+        )
+
+
+chompTill : List Char -> (String -> x) -> PA.Parser c x ( Bool, String, ( Int, Int ) )
+chompTill chars prob =
+    PA.succeed (\pos val flag -> ( flag, val, pos ))
+        |= PA.getPosition
+        |= (PA.chompWhile (\c -> not <| List.member (Debug.log "skipping" c) chars)
+                |> PA.getChompedString
+           )
+        |= PA.oneOf
+            [ PA.map (always True)
+                (PA.chompIf (\c -> List.member (Debug.log "matched" c) chars) (prob ""))
+            , PA.succeed False
+            ]

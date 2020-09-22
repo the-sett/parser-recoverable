@@ -222,10 +222,10 @@ end prob =
 
 
 succeed : a -> Parser c x a
-succeed x =
+succeed val =
     Parser
         (\s ->
-            { pa = PA.succeed (Success x)
+            { pa = PA.succeed (Success val)
             , onError = s
             }
         )
@@ -694,7 +694,8 @@ forwardOrSkip matches probFn parser =
 
 forwardThenRetry : List Char -> (String -> x) -> Parser c x a -> Parser c x a
 forwardThenRetry matches probFn parser =
-    ChompThenRetry matches probFn |> withRecovery parser
+    ChompThenRetry matches probFn
+        |> withRecovery parser
 
 
 silent : Parser c x a -> Parser c x a
@@ -832,6 +833,35 @@ lower parser =
                         --PA.problem
                         Debug.todo "lower Failure"
             )
+
+
+
+-- lift : PA.Parser c x a -> Parser c x a
+-- lift parser =
+--     Parser
+--         (\s ->
+--             { pa =
+--                 PA.map Success parser
+--             , onError = s
+--             }
+--         )
+-- liftWithRetry : PA.Parser c x a -> Parser c x a
+-- liftWithRetry parser =
+--     Parser
+--         (\s ->
+--             { pa =
+--                 case s of
+--                     Fail ->
+--                         failOnError parser
+--
+--                     ChompThenRetry matches errFn ->
+--                         chompThenRetryOnError matches errFn parser
+--
+--                     _ ->
+--                         failOnError parser
+--             , onError = s
+--             }
+--         )
 
 
 lift : PA.Parser c x a -> Parser c x a
