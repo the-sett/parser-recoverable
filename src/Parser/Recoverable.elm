@@ -829,6 +829,22 @@ lift parser =
         )
 
 
+
+-- liftWithFailure : x -> PA.Parser c x a -> Parser c x a
+-- liftWithFailure prob parser =
+--     Parser
+--         (\s ->
+--             { pa =
+--                 PA.oneOf
+--                     [ parser |> PA.map Success
+--                     , PA.getPosition
+--                         |> PA.andThen (\pos -> failureAt pos prob)
+--                     ]
+--             , onError = s
+--             }
+--         )
+
+
 liftWithRecovery : a -> PA.Parser c x a -> Parser c x a
 liftWithRecovery val parser =
     Parser

@@ -85,18 +85,42 @@ type Problem
     | Recovered String
 
 
+
+-- parser : Parser Never Problem AST
+-- parser =
+--     PR.succeed ParsedOk
+--         |> PR.keep
+--             (PR.sequence
+--                 { start = ( "(", ExpectingStartBrace )
+--                 , end = ( ")", ExpectingEndBrace )
+--                 , separator = ( ",", ExpectingComma )
+--                 , spaces = PR.spaces
+--                 , item = PR.int ExpectingInt InvalidNumber
+--                 , trailing = PR.Mandatory
+--                 }
+--             )
+
+
 parser : Parser Never Problem AST
 parser =
     PR.succeed ParsedOk
         |> PR.keep
-            (PR.sequence
-                { start = ( "(", ExpectingStartBrace )
-                , end = ( ")", ExpectingEndBrace )
-                , separator = ( ",", ExpectingComma )
-                , spaces = PR.spaces
-                , item = PR.int ExpectingInt InvalidNumber
-                , trailing = PR.Mandatory
-                }
+            (PR.loop []
+                (\vals ->
+                    PR.succeed
+                        (\val ->
+                            if List.length vals < 2 then
+                                val :: vals |> PR.Loop
+
+                            else
+                                val :: vals |> PR.Done
+                        )
+                        |> PR.ignore PR.spaces
+                        |> PR.keep (PR.int ExpectingInt InvalidNumber)
+                        |> PR.ignore PR.spaces
+                        |> PR.ignore (PR.symbol "," ExpectingComma)
+                        |> PR.forwardOrSkip [ ',' ] Recovered
+                )
             )
 
 
