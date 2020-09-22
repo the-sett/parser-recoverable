@@ -163,8 +163,6 @@ forwardThenRetry matches probFn parsr =
                         (\( foundMatch, chompedString, ( row, col ) ) ->
                             if chompedString == "" then
                                 PA.problem (probFn "")
-                                --    |> PA.Done
-                                --
 
                             else
                                 PA.Loop ()
