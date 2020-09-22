@@ -77,9 +77,9 @@ type AST
 
 
 type Problem
-    = StartBrace
-    | EndBrace
-    | Comma
+    = ExpectingStartBrace
+    | ExpectingEndBrace
+    | ExpectingComma
     | ExpectingInt
     | InvalidNumber
     | Recovered String
@@ -90,9 +90,9 @@ parser =
     PR.succeed ParsedOk
         |> PR.keep
             (PR.sequence
-                { start = ( "(", StartBrace )
-                , end = ( ")", EndBrace )
-                , separator = ( ",", Comma )
+                { start = ( "(", ExpectingStartBrace )
+                , end = ( ")", ExpectingEndBrace )
+                , separator = ( ",", ExpectingComma )
                 , spaces = PR.spaces
                 , item = PR.int ExpectingInt InvalidNumber
                 , trailing = PR.Mandatory
