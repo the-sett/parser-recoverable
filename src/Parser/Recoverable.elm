@@ -9,7 +9,7 @@ module Parser.Recoverable exposing
     , getChompedString, chompIf, chompWhile, chompUntil, chompUntilEndOr, mapChompedString
     , withIndent, getIndent
     , getPosition, getRow, getCol, getOffset, getSource
-    , fail, skip, forward, forwardOrSkip, silent
+    , fail, skip, forward, forwardOrSkip, forwardThenRetry, silent
     )
 
 {-|
@@ -72,7 +72,7 @@ certain scenarios.**
 
 # Error Recovery Tactics
 
-@docs fail, skip, forward, forwardOrSkip, silent
+@docs fail, skip, forward, forwardOrSkip, forwardThenRetry, silent
 
 -}
 
@@ -298,33 +298,6 @@ andThen fn (Parser pfunA) =
 
 
 -- Branches
---
--- oneOf that always succeeds, but with Failure - is this really necessary?
--- oneOf : x -> List (Parser c x a) -> Parser c x a
--- oneOf prob options =
---     Parser
---         (\s ->
---             { pa =
---                 PA.oneOf
---                     (List.foldr
---                         (\(Parser tryParserFn) accum -> (tryParserFn s).pa :: accum)
---                         [ PA.succeed
---                             (\( row, col ) ->
---                                 Failure
---                                     [ { row = row
---                                       , col = col
---                                       , problem = prob
---                                       , contextStack = []
---                                       }
---                                     ]
---                             )
---                             |= PA.getPosition
---                         ]
---                         options
---                     )
---             , onError = s
---             }
---         )
 
 
 oneOf : List (Parser c x a) -> Parser c x a
@@ -690,6 +663,7 @@ type RecoveryTactic x
     | Warn x -- Skip
     | ChompForMatch (List Char) (String -> x)
     | ChompForMatchOrSkip (List Char) (String -> x)
+    | ChompThenRetry (List Char) (String -> x)
     | Ignore
 
 
@@ -716,6 +690,11 @@ forward matches probFn parser =
 forwardOrSkip : List Char -> (String -> x) -> Parser c x a -> Parser c x a
 forwardOrSkip matches probFn parser =
     ChompForMatchOrSkip matches probFn |> withRecovery parser
+
+
+forwardThenRetry : List Char -> (String -> x) -> Parser c x a -> Parser c x a
+forwardThenRetry matches probFn parser =
+    ChompThenRetry matches probFn |> withRecovery parser
 
 
 silent : Parser c x a -> Parser c x a
@@ -765,35 +744,71 @@ Did not find the token and failed to chomp for recovery. Normal error.
 
 -}
 chompForMatchOnError : a -> List Char -> (String -> x) -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
-chompForMatchOnError val matches prob parser =
+chompForMatchOnError val matches probFn parser =
     PA.oneOf
         [ PA.map Success parser
-        , chompTill matches prob
+        , chompTill matches probFn
             |> PA.andThen
                 (\( foundMatch, chompedString, pos ) ->
                     if foundMatch then
-                        partialAt pos val (prob chompedString)
+                        partialAt pos val (probFn chompedString)
 
                     else
-                        failureAt pos (prob "")
+                        failureAt pos (probFn "")
                 )
         ]
 
 
 chompForMatchOrSkipOnError : a -> List Char -> (String -> x) -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
-chompForMatchOrSkipOnError val matches prob parser =
+chompForMatchOrSkipOnError val matches probFn parser =
     PA.oneOf
         [ PA.map Success parser
-        , chompTill matches prob
+        , chompTill matches probFn
             |> PA.andThen
                 (\( foundMatch, chompedString, pos ) ->
                     if foundMatch then
-                        partialAt pos val (prob chompedString)
+                        partialAt pos val (probFn chompedString)
 
                     else
-                        partialAt pos val (prob chompedString)
+                        partialAt pos val (probFn chompedString)
                 )
         ]
+
+
+chompThenRetryOnError : List Char -> (String -> x) -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
+chompThenRetryOnError matches probFn parser =
+    PA.loop ()
+        (\_ ->
+            PA.oneOf
+                [ -- Found a value
+                  PA.succeed (\val -> Success val |> PA.Done)
+                    |= parser
+                , chompTill matches probFn
+                    |> PA.map
+                        (\( foundMatch, chompedString, ( row, col ) ) ->
+                            if chompedString == "" then
+                                Failure
+                                    [ { row = row
+                                      , col = col
+                                      , problem = probFn ""
+                                      , contextStack = []
+                                      }
+                                    ]
+                                    -- Didn't make progress
+                                    |> PA.Done
+
+                            else
+                                -- { row = row
+                                -- , col = col
+                                -- , problem = probFn chompedString
+                                -- , contextStack = []
+                                -- }
+                                -- No match, but something was chopmed, so try again.
+                                ()
+                                    |> PA.Loop
+                        )
+                ]
+        )
 
 
 
@@ -823,26 +838,19 @@ lift : PA.Parser c x a -> Parser c x a
 lift parser =
     Parser
         (\s ->
-            { pa = parser |> PA.map Success
+            { pa =
+                case s of
+                    Fail ->
+                        failOnError parser
+
+                    ChompThenRetry matches errFn ->
+                        chompThenRetryOnError matches errFn parser
+
+                    _ ->
+                        failOnError parser
             , onError = s
             }
         )
-
-
-
--- liftWithFailure : x -> PA.Parser c x a -> Parser c x a
--- liftWithFailure prob parser =
---     Parser
---         (\s ->
---             { pa =
---                 PA.oneOf
---                     [ parser |> PA.map Success
---                     , PA.getPosition
---                         |> PA.andThen (\pos -> failureAt pos prob)
---                     ]
---             , onError = s
---             }
---         )
 
 
 liftWithRecovery : a -> PA.Parser c x a -> Parser c x a
@@ -865,6 +873,9 @@ liftWithRecovery val parser =
 
                     ChompForMatchOrSkip matches errFn ->
                         chompForMatchOrSkipOnError val matches errFn parser
+
+                    ChompThenRetry matches errFn ->
+                        chompThenRetryOnError matches errFn parser
             , onError = s
             }
         )

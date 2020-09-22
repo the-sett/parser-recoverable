@@ -119,7 +119,7 @@ parser =
                         |> PR.keep (PR.int ExpectingInt InvalidNumber)
                         |> PR.ignore PR.spaces
                         |> PR.ignore (PR.symbol "," ExpectingComma)
-                        |> PR.forwardOrSkip [ ',' ] Recovered
+                        |> PR.forwardThenRetry [ ',' ] Recovered
                 )
             )
 
