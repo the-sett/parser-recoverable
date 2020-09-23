@@ -513,8 +513,16 @@ chompUntilEndOr val =
 
 mapChompedString : (String -> a -> b) -> Parser c x a -> Parser c x b
 mapChompedString func parser =
-    --PA.mapChompedString func parser
-    Debug.todo "mapChompedString"
+    PA.mapChompedString
+        (\s valA ->
+            case valA of
+                Success val ->
+                    func s val |> Success
+
+                err ->
+                    err |> mapOutcome (func "")
+        )
+        parser
 
 
 
