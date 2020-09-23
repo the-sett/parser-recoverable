@@ -1,6 +1,8 @@
 module Parser.Recoverable exposing
-    ( Parser, run, Outcome(..), DeadEnd, inContext
-    , silent, skip, forward, forwardOrSkip, forwardThenRetry
+    ( Parser, run, Outcome(..)
+    , silent, skip, forward, forwardOrSkip
+    , forwardThenRetry
+    , DeadEnd, inContext
     , int, float, number, symbol, keyword, variable, end
     , ignore, keep
     , succeed, lazy, andThen, problem
@@ -17,12 +19,30 @@ module Parser.Recoverable exposing
 
 # Parsers
 
-@docs Parser, run, Outcome, DeadEnd, inContext
+@docs Parser, run, Outcome
 
 
-# Error Recovery Tactics
+# Recovery Tactics with Default Value
 
-@docs silent, skip, forward, forwardOrSkip, forwardThenRetry
+For these recovery tactics, a default value for `a` must be given, so that the
+parser can return something in the event of an error. These recovery tactics
+are most useful when combined with parsers of the form `Parser c x ()`, such as
+when consuming a `keyword` or `symbol` or chomping some characters and so on.
+
+Another way you could use them, is to use `Nothing` as the default value.
+
+@docs silent, skip, forward, forwardOrSkip
+
+
+# Recovery Tactics without Default Value
+
+For these recovery tactics, no default value for `a` is needed. These all use
+a retry loop, so that they will eventually succeed or fail altogether. These
+recovery tactics are most useful when parsing a sequence of many things, with
+the aim of putting the parser back on track if some of the things contain
+syntax errors.
+
+@docs forwardThenRetry
 
 ---
 
@@ -30,15 +50,26 @@ module Parser.Recoverable exposing
 [`Parser`](/packages/elm/parser/latest/Parser) module, except for these
 differences:**
 
-    - `String` arguments become 2 arguments - a String and a `Problem`, since
-    you need to define which problem to report when a String is not matched.
+  - `String` arguments become 2 arguments - a `String` and a `problem`, since
+    you need to define which problem to report when a `String` is not matched.
 
-    - There are certain other functions which also need a `Problem` argument.
+  - There are certain other functions which also need a `problem` argument.
 
-    - The `|=` and `|.` operators are only available to kernel packages. You
-    need to use `|> keep` and `|> ignore` instead.
+  - The `|=` and `|.` operators are only available to kernel packages, and this
+    package cannot export them. You need to use `|> keep` and `|> ignore` instead.
+
+  - When combining parser with function such as `keep` or `andThen`, if one of
+    the parsers fails, then parsing will stop with `Failure`. If no parser fails,
+    but one of them yields a `Partial` result, parsing will continue with the
+    errors carrying forward. Due to this, parsers that have recovered succesfully
+    from errors will keep running.
 
 ---
+
+
+# Basics
+
+@docs DeadEnd, inContext
 
 
 # Building Blocks
@@ -111,10 +142,12 @@ run parser input =
 
 {-| Describes the possible outcomes from running a parser.
 
-    - `Success` means that the parsing completed with no syntax errors at all.
-    - `Partial` means that the parsing was able to complete by recovering from
+  - `Success` means that the parsing completed with no syntax errors at all.
+
+  - `Partial` means that the parsing was able to complete by recovering from
     syntax errors. The syntax errors are listed along with the parsed result.
-    - `Failure` means that the parsing could not complete, so there is no parsed
+
+  - `Failure` means that the parsing could not complete, so there is no parsed
     result, only a list of errors.
 
 -}
@@ -155,7 +188,7 @@ mapOutcome fn outcome =
             Failure err
 
 
-{-| The same as in Parser.Advanced.
+{-| The same as `Parser.Advanced.DeadEnd`.
 -}
 type alias DeadEnd context problem =
     PA.DeadEnd context problem
@@ -301,7 +334,7 @@ problem x =
     PA.problem x |> lift
 
 
-{-| This is a flipped version of `Parser.(|=)`.
+{-| This is a flipped version of `|=`
 
 If either parser fails, the result of this will fail. If either parser produces
 a `Partial` result but not a `Failure`, the parsing will continue and carry
@@ -313,7 +346,7 @@ keep parseArg parseFunc =
     map2 (<|) parseFunc parseArg
 
 
-{-| This is a flipped version of `Parser.(|-)`.
+{-| This is a flipped version of `|.`
 
 If either parser fails, the result of this will fail. If either parser produces
 a `Partial` result but not a `Failure`, the parsing will continue and carry
@@ -716,6 +749,10 @@ getSource =
 
 
 {-| Silently ignore any failure.
+
+A default value for `a` must be given, so that the parser can return something
+in the event of an error and succesful recovery.
+
 -}
 silent : a -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
 silent val parser =
@@ -726,6 +763,10 @@ silent val parser =
 
 
 {-| Skip over a failure, but when one happens add an error to a `Partial` result.
+
+A default value for `a` must be given, so that the parser can return something
+in the event of an error and succesful recovery.
+
 -}
 skip : a -> x -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
 skip val prob parser =
@@ -735,8 +776,12 @@ skip val prob parser =
         ]
 
 
-{-| When parsing fails, attempt to fast-forward to one of a set of sential tokens.
+{-| When parsing fails, attempt to fast-forward to one of a set of sentinal tokens.
 When this happens an error is added to a `Partial` result.
+
+A default value for `a` must be given, so that the parser can return something
+in the event of an error and succesful recovery.
+
 -}
 forward : a -> List Char -> x -> (String -> x) -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
 forward val matches noMatchProb chompedProb parser =
@@ -754,9 +799,13 @@ forward val matches noMatchProb chompedProb parser =
         ]
 
 
-{-| When parsing fails, attempt to fast-forward to one of a set of sential tokens,
+{-| When parsing fails, attempt to fast-forward to one of a set of sentinal tokens,
 or if none can be found, skip over the failure. When this happens an error is
 added to a `Partial` result.
+
+A default value for `a` must be given, so that the parser can return something
+in the event of an error and succesful recovery.
+
 -}
 forwardOrSkip : a -> List Char -> x -> (String -> x) -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
 forwardOrSkip val matches noMatchProb chompedProb parser =
@@ -775,12 +824,18 @@ forwardOrSkip val matches noMatchProb chompedProb parser =
 
 
 {-| When parsing fails, backtrack, then attempt to fast-forward to one of a set
-of sential tokens.
+of sentinal tokens.
 
-If a sential token is found, restart the parser just after it,
+If a sentinal token is found, restart the parser just after it,
 and continue with an error added to a `Partial` result.
 
-If no sential token can be found, fail with the specified problem.
+If no characters are consumed when attempting to fast-forward, the recovery is
+not making any progress, so no sentinal token will be found. When this happens,
+fail with the specified 'no match' problem. This prevents this tactic from
+infinite looping.
+
+Note that no default value for `a` is needed with this recovery tactic. This
+tactic will retry until it succeeds or fails altogether.
 
 -}
 forwardThenRetry : List Char -> x -> (String -> x) -> Parser c x a -> Parser c x a
