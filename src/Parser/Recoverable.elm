@@ -483,7 +483,7 @@ type Nestable
 
 
 
--- Chopmers
+-- Chompers
 
 
 getChompedString : Parser c x a -> Parser c x String

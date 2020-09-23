@@ -104,12 +104,11 @@ loop =
                         val :: vals |> PR.Done
                 )
                 |> PR.keep
-                    ((PR.succeed identity
+                    (PR.succeed identity
                         |> PR.ignore PR.spaces
                         |> PR.keep (PR.int ExpectingInt InvalidNumber)
                         |> PR.ignore PR.spaces
                         |> PR.ignore (PR.symbol "," ExpectingComma)
-                     )
                         |> PR.forwardThenRetry [ ',' ] ExpectingComma Recovered
                     )
         )
