@@ -1,5 +1,6 @@
 module Parser.Recoverable exposing
     ( Parser, run, Outcome(..), DeadEnd, inContext
+    , silent, skip, forward, forwardOrSkip, forwardThenRetry
     , int, float, number, symbol, keyword, variable, end
     , ignore, keep
     , succeed, lazy, andThen, problem
@@ -9,7 +10,6 @@ module Parser.Recoverable exposing
     , getChompedString, chompIf, chompWhile, chompUntil, chompUntilEndOr, mapChompedString
     , withIndent, getIndent
     , getPosition, getRow, getCol, getOffset, getSource
-    , skip, forward, forwardOrSkip, forwardThenRetry, silent
     )
 
 {-|
@@ -17,14 +17,26 @@ module Parser.Recoverable exposing
 
 # Parsers
 
-@docs Parser, run, Outcome, DeadEnd, inContext, Token
+@docs Parser, run, Outcome, DeadEnd, inContext
+
+
+# Error Recovery Tactics
+
+@docs silent, skip, forward, forwardOrSkip, forwardThenRetry
 
 ---
 
 **Everything past here works just like in the
-[`Parser`](/packages/elm/parser/latest/Parser) module, except that `String`
-arguments become `Token` arguments, and you need to provide a `Problem` for
-certain scenarios.**
+[`Parser`](/packages/elm/parser/latest/Parser) module, except for these
+differences:**
+
+    - `String` arguments become 2 arguments - a String and a `Problem`, since
+    you need to define which problem to report when a String is not matched.
+
+    - There are certain other functions which also need a `Problem` argument.
+
+    - The `|=` and `|.` operators are only available to kernel packages. You
+    need to use `|> keep` and `|> ignore` instead.
 
 ---
 
@@ -68,11 +80,6 @@ certain scenarios.**
 # Positions
 
 @docs getPosition, getRow, getCol, getOffset, getSource
-
-
-# Error Recovery Tactics
-
-@docs skip, forward, forwardOrSkip, forwardThenRetry, silent
 
 -}
 
