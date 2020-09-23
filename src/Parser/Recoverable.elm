@@ -113,15 +113,20 @@ type Outcome context problem value
 
 addWarnings : List (DeadEnd c x) -> Outcome c x a -> Outcome c x a
 addWarnings warnings outcome =
-    case outcome of
-        Success data ->
-            Partial warnings data
+    case warnings of
+        [] ->
+            outcome
 
-        Partial existingWarnings data ->
-            Partial (existingWarnings ++ warnings) data
+        _ ->
+            case outcome of
+                Success data ->
+                    Partial warnings data
 
-        Failure existingFailures ->
-            Failure (existingFailures ++ warnings)
+                Partial existingWarnings data ->
+                    Partial (existingWarnings ++ warnings) data
+
+                Failure existingFailures ->
+                    Failure (existingFailures ++ warnings)
 
 
 mapOutcome : (a -> b) -> Outcome c x a -> Outcome c x b
@@ -602,16 +607,22 @@ forwardOrSkip val matches noMatchProb chompedProb parser =
 
 forwardThenRetry : List Char -> x -> (String -> x) -> Parser c x a -> Parser c x a
 forwardThenRetry matches noMatchProb chompedProb parser =
-    PA.loop ()
-        (\_ ->
+    PA.loop []
+        (\warnings ->
             PA.oneOf
-                [ -- Found a value
-                  PA.succeed (\val -> val |> PA.Done)
+                [ -- Found a value, ensure any warning so far are kept.
+                  PA.succeed
+                    (\val ->
+                        val
+                            |> addWarnings warnings
+                            |> PA.Done
+                    )
                     |= PA.backtrackable parser
                 , chompTill matches noMatchProb
                     |> PA.map
                         (\( foundMatch, chompedString, ( row, col ) ) ->
                             if chompedString == "" then
+                                -- Failed to make any progress, so stop.
                                 Failure
                                     [ { row = row
                                       , col = col
@@ -619,17 +630,16 @@ forwardThenRetry matches noMatchProb chompedProb parser =
                                       , contextStack = []
                                       }
                                     ]
-                                    -- Didn't make progress
                                     |> PA.Done
 
                             else
-                                -- { row = row
-                                -- , col = col
-                                -- , problem = probFn chompedString
-                                -- , contextStack = []
-                                -- }
-                                -- No match, but something was chopmed, so try again.
-                                ()
+                                -- No match, but something was chomped, so try again.
+                                { row = row
+                                , col = col
+                                , problem = chompedProb chompedString
+                                , contextStack = []
+                                }
+                                    :: warnings
                                     |> PA.Loop
                         )
                 ]
