@@ -80,9 +80,11 @@ type Problem
     = ExpectingStartBrace
     | ExpectingEndBrace
     | ExpectingComma
+    | ExpectingEnd
+    | ExpectingSpace
     | ExpectingInt
     | InvalidNumber
-    | Recovered String
+    | Discarded String
 
 
 parser : PR.Parser Never Problem AST
@@ -95,20 +97,40 @@ loop : PR.Parser Never Problem (List Int)
 loop =
     PR.loop []
         (\vals ->
-            PR.succeed
-                (\val ->
-                    if List.length vals < 2 then
-                        val :: vals |> PR.Loop
-
-                    else
-                        val :: vals |> PR.Done
-                )
-                |> PR.keep
-                    (PR.succeed identity
-                        |> PR.ignore PR.spaces
-                        |> PR.keep (PR.int ExpectingInt InvalidNumber)
-                        |> PR.ignore PR.spaces
-                        |> PR.ignore (PR.symbol "," ExpectingComma)
-                        |> PR.forwardThenRetry [ ',' ] ExpectingComma Recovered
-                    )
+            PR.oneOf
+                [ PR.succeed ()
+                    |> PR.ignore (PR.end ExpectingEnd)
+                    |> PR.map (\_ -> PR.Done (List.reverse vals))
+                , PR.succeed (\val -> val :: vals |> PR.Loop)
+                    |> PR.keep
+                        (PR.succeed identity
+                            |> PR.ignore PR.spaces
+                            |> PR.keep (PR.int ExpectingInt InvalidNumber)
+                            |> PR.ignore PR.spaces
+                            |> PR.forwardThenRetry [ ' ' ] ExpectingSpace Discarded
+                        )
+                ]
         )
+
+
+
+-- loop : PR.Parser Never Problem (List Int)
+-- loop =
+--     PR.loop []
+--         (\vals ->
+--             PR.succeed
+--                 (\val ->
+--                     if List.length vals < 2 then
+--                         val :: vals |> PR.Loop
+--
+--                     else
+--                         val :: vals |> PR.Done
+--                 )
+--                 |> PR.keep
+--                     (PR.succeed identity
+--                         |> PR.ignore PR.spaces
+--                         |> PR.keep (PR.int ExpectingInt InvalidNumber)
+--                         |> PR.ignore PR.spaces
+--                         |> PR.forwardThenRetry [ ' ' ] ExpectingComma Recovered
+--                     )
+--         )
