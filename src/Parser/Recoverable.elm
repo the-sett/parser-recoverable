@@ -552,66 +552,12 @@ getSource =
 -- Error Recovery Tactics
 
 
-{-| Describes the possible ways the parser should act when it encounters
-something that it cannot parse.
-
-    - `Fail` stop parsing and return a `Failure` outcome.
-    - `Warn` ignore the error, but add a problem and use a `Partial` outcome.
-    - `Ignore` ignore the error and continue with a `Success` outcome.
-    - `ChompForMatch` try chomping to find a matching character. If succesfull
-    add a problem but continue with a `Partial` outcome. If this does not work
-    then `Fail`.
-
--}
-
-
-
--- type RecoveryTactic x
---     = Fail
---     | Warn x -- Skip
---     | ChompForMatch (List Char) (String -> x)
---     | ChompForMatchOrSkip (List Char) (String -> x)
---     | ChompThenRetry (List Char) (String -> x)
---     | Ignore
---
---
--- withRecovery : Parser c x a -> RecoveryTactic x -> Parser c x a
--- withRecovery parser tactic =
---     parser tactic
---
---
--- fail : Parser c x a -> Parser c x a
--- fail parser =
---     Fail |> withRecovery parser
---
---
--- skip : x -> Parser c x a -> Parser c x a
--- skip prob parser =
---     Warn prob |> withRecovery parser
---
---
--- forward : List Char -> (String -> x) -> Parser c x a -> Parser c x a
--- forward matches probFn parser =
---     ChompForMatch matches probFn |> withRecovery parser
---
---
--- forwardOrSkip : List Char -> (String -> x) -> Parser c x a -> Parser c x a
--- forwardOrSkip matches probFn parser =
---     ChompForMatchOrSkip matches probFn |> withRecovery parser
---
---
--- forwardThenRetry : List Char -> (String -> x) -> Parser c x a -> Parser c x a
--- forwardThenRetry matches probFn parser =
---     ChompThenRetry matches probFn
---         |> withRecovery parser
---
---
--- silent : Parser c x a -> Parser c x a
--- silent parser =
---     Ignore |> withRecovery parser
--- failOnError : PA.Parser c x a -> PA.Parser c x (Outcome c x a)
--- failOnError parser =
---     PA.map Success parser
+silent : a -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
+silent val parser =
+    PA.oneOf
+        [ PA.map Success parser
+        , PA.succeed (Success val)
+        ]
 
 
 skip : a -> x -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
@@ -619,14 +565,6 @@ skip val prob parser =
     PA.oneOf
         [ PA.map Success parser
         , partial val prob
-        ]
-
-
-silent : a -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
-silent val parser =
-    PA.oneOf
-        [ PA.map Success parser
-        , PA.succeed (Success val)
         ]
 
 
