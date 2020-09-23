@@ -568,54 +568,54 @@ skip val prob parser =
         ]
 
 
-forward : a -> List Char -> (String -> x) -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
-forward val matches probFn parser =
+forward : a -> List Char -> x -> (String -> x) -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
+forward val matches noMatchProb chompedProb parser =
     PA.oneOf
         [ PA.map Success parser
-        , chompTill matches probFn
+        , chompTill matches noMatchProb
             |> PA.andThen
                 (\( foundMatch, chompedString, pos ) ->
                     if foundMatch then
-                        partialAt pos val (probFn chompedString)
+                        partialAt pos val (chompedProb chompedString)
 
                     else
-                        failureAt pos (probFn "")
+                        failureAt pos noMatchProb
                 )
         ]
 
 
-forwardOrSkip : a -> List Char -> (String -> x) -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
-forwardOrSkip val matches probFn parser =
+forwardOrSkip : a -> List Char -> x -> (String -> x) -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
+forwardOrSkip val matches noMatchProb chompedProb parser =
     PA.oneOf
         [ PA.map Success parser
-        , chompTill matches probFn
+        , chompTill matches noMatchProb
             |> PA.andThen
                 (\( foundMatch, chompedString, pos ) ->
                     if foundMatch then
-                        partialAt pos val (probFn chompedString)
+                        partialAt pos val (chompedProb chompedString)
 
                     else
-                        partialAt pos val (probFn chompedString)
+                        partialAt pos val noMatchProb
                 )
         ]
 
 
-forwardThenRetry : List Char -> (String -> x) -> Parser c x a -> Parser c x a
-forwardThenRetry matches probFn parser =
+forwardThenRetry : List Char -> x -> (String -> x) -> Parser c x a -> Parser c x a
+forwardThenRetry matches noMatchProb chompedProb parser =
     PA.loop ()
         (\_ ->
             PA.oneOf
                 [ -- Found a value
                   PA.succeed (\val -> val |> PA.Done)
                     |= PA.backtrackable parser
-                , chompTill matches probFn
+                , chompTill matches noMatchProb
                     |> PA.map
                         (\( foundMatch, chompedString, ( row, col ) ) ->
                             if chompedString == "" then
                                 Failure
                                     [ { row = row
                                       , col = col
-                                      , problem = probFn ""
+                                      , problem = noMatchProb
                                       , contextStack = []
                                       }
                                     ]
@@ -645,7 +645,7 @@ lift parser =
     PA.map Success parser
 
 
-chompTill : List Char -> (String -> x) -> PA.Parser c x ( Bool, String, ( Int, Int ) )
+chompTill : List Char -> x -> PA.Parser c x ( Bool, String, ( Int, Int ) )
 chompTill chars prob =
     PA.succeed (\pos val flag -> ( flag, val, pos ))
         |= PA.getPosition
@@ -654,7 +654,7 @@ chompTill chars prob =
            )
         |= PA.oneOf
             [ PA.map (always True)
-                (PA.chompIf (\c -> List.member (Debug.log "matched" c) chars) (prob ""))
+                (PA.chompIf (\c -> List.member (Debug.log "matched" c) chars) prob)
             , PA.succeed False
             ]
 

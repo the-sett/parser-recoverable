@@ -110,6 +110,6 @@ loop =
                         |> PR.ignore PR.spaces
                         |> PR.ignore (PR.symbol "," ExpectingComma)
                      )
-                        |> PR.forwardThenRetry [ ',' ] Recovered
+                        |> PR.forwardThenRetry [ ',' ] ExpectingComma Recovered
                     )
         )
