@@ -835,35 +835,6 @@ lower parser =
             )
 
 
-
--- lift : PA.Parser c x a -> Parser c x a
--- lift parser =
---     Parser
---         (\s ->
---             { pa =
---                 PA.map Success parser
---             , onError = s
---             }
---         )
--- liftWithRetry : PA.Parser c x a -> Parser c x a
--- liftWithRetry parser =
---     Parser
---         (\s ->
---             { pa =
---                 case s of
---                     Fail ->
---                         failOnError parser
---
---                     ChompThenRetry matches errFn ->
---                         chompThenRetryOnError matches errFn parser
---
---                     _ ->
---                         failOnError parser
---             , onError = s
---             }
---         )
-
-
 lift : PA.Parser c x a -> Parser c x a
 lift parser =
     Parser
