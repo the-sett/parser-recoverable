@@ -85,104 +85,31 @@ type Problem
     | Recovered String
 
 
-
--- parser : Parser Never Problem AST
--- parser =
---     PR.succeed ParsedOk
---         |> PR.keep
---             (PR.sequence
---                 { start = ( "(", ExpectingStartBrace )
---                 , end = ( ")", ExpectingEndBrace )
---                 , separator = ( ",", ExpectingComma )
---                 , spaces = PR.spaces
---                 , item = PR.int ExpectingInt InvalidNumber
---                 , trailing = PR.Mandatory
---                 }
---             )
---
---
---
--- parser : PR.Parser Never Problem AST
--- parser =
---     PR.succeed ParsedOk
---         |> PR.keep
---             (PR.loop []
---                 (\vals ->
---                     PR.succeed
---                         (\val ->
---                             if List.length vals < 2 then
---                                 val :: vals |> PR.Loop
---
---                             else
---                                 val :: vals |> PR.Done
---                         )
---                         |> PR.ignore PR.spaces
---                         |> PR.keep (PR.int ExpectingInt InvalidNumber)
---                         |> PR.ignore PR.spaces
---                         |> PR.forwardThenRetry [ ',' ] Recovered
---                         |> PR.ignore (PR.symbol "," ExpectingComma)
---                 )
---             )
-
-
 parser : PR.Parser Never Problem AST
 parser =
     PR.succeed ParsedOk
-        |> PR.keep
-            (PR.loop []
-                (\vals ->
-                    PR.succeed
-                        (\val ->
-                            if List.length vals < 2 then
-                                val :: vals |> PR.Loop
+        |> PR.keep loop
 
-                            else
-                                val :: vals |> PR.Done
-                        )
-                        |> PR.keep
-                            ((PR.succeed identity
-                                |> PR.ignore PR.spaces
-                                |> PR.keep (PR.int ExpectingInt InvalidNumber)
-                                |> PR.ignore PR.spaces
-                                |> PR.ignore (PR.symbol "," ExpectingComma)
-                             )
-                                |> PR.forwardThenRetry [ ',' ] Recovered
-                            )
+
+loop : PR.Parser Never Problem (List Int)
+loop =
+    PR.loop []
+        (\vals ->
+            PR.succeed
+                (\val ->
+                    if List.length vals < 2 then
+                        val :: vals |> PR.Loop
+
+                    else
+                        val :: vals |> PR.Done
                 )
-            )
-
-
-
--- forwardThenRetry : List Char -> (String -> x) -> PA.Parser c x a -> PA.Parser c x a
--- forwardThenRetry matches probFn parsr =
---     PA.loop ()
---         (\_ ->
---             PA.oneOf
---                 [ PA.succeed (\val -> val |> PA.Done)
---                     |= PA.backtrackable parsr
---                 , chompTill matches probFn
---                     |> PA.andThen
---                         (\( foundMatch, chompedString, ( row, col ) ) ->
---                             if chompedString == "" then
---                                 PA.problem (probFn "")
---
---                             else
---                                 PA.Loop ()
---                                     |> PA.succeed
---                         )
---                 ]
---         )
---
---
--- chompTill : List Char -> (String -> x) -> PA.Parser c x ( Bool, String, ( Int, Int ) )
--- chompTill chars prob =
---     PA.succeed (\pos val flag -> ( flag, val, pos ))
---         |= PA.getPosition
---         |= (PA.chompWhile (\c -> not <| List.member (Debug.log "skipping" c) chars)
---                 |> PA.getChompedString
---            )
---         |= PA.oneOf
---             [ PA.map (always True)
---                 (PA.chompIf (\c -> List.member (Debug.log "matched" c) chars) (prob ""))
---             , PA.succeed False
---             ]
+                |> PR.keep
+                    ((PR.succeed identity
+                        |> PR.ignore PR.spaces
+                        |> PR.keep (PR.int ExpectingInt InvalidNumber)
+                        |> PR.ignore PR.spaces
+                        |> PR.ignore (PR.symbol "," ExpectingComma)
+                     )
+                        |> PR.forwardThenRetry [ ',' ] Recovered
+                    )
+        )

@@ -662,13 +662,13 @@ forwardOrSkip val matches probFn parser =
         ]
 
 
-forwardThenRetry : List Char -> (String -> x) -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
+forwardThenRetry : List Char -> (String -> x) -> Parser c x a -> Parser c x a
 forwardThenRetry matches probFn parser =
     PA.loop ()
         (\_ ->
             PA.oneOf
                 [ -- Found a value
-                  PA.succeed (\val -> Success val |> PA.Done)
+                  PA.succeed (\val -> val |> PA.Done)
                     |= PA.backtrackable parser
                 , chompTill matches probFn
                     |> PA.map
@@ -702,73 +702,9 @@ forwardThenRetry matches probFn parser =
 -- Helpers
 
 
-lower : PA.Parser c x (Outcome c x a) -> PA.Parser c x a
-lower parser =
-    parser
-        |> PA.andThen
-            (\outcome ->
-                case outcome of
-                    Success val ->
-                        PA.succeed val
-
-                    Partial deadEnds val ->
-                        --PA.problem
-                        Debug.todo "lower Partial"
-
-                    Failure deadEnds ->
-                        --PA.problem
-                        Debug.todo "lower Failure"
-            )
-
-
 lift : PA.Parser c x a -> Parser c x a
 lift parser =
     PA.map Success parser
-
-
-
--- lift parser =
---     Parser
---         (\s ->
---             { pa =
---                 case s of
---                     Fail ->
---                         failOnError parser
---
---                     ChompThenRetry matches errFn ->
---                         chompThenRetryOnError matches errFn parser
---
---                     _ ->
---                         failOnError parser
---             , onError = s
---             }
---         )
--- liftWithRecovery : a -> PA.Parser c x a -> Parser c x a
--- liftWithRecovery val parser =
---     Parser
---         (\s ->
---             { pa =
---                 case s of
---                     Fail ->
---                         failOnError parser
---
---                     Warn err ->
---                         warnOnError val err parser
---
---                     Ignore ->
---                         ignoreError val parser
---
---                     ChompForMatch matches errFn ->
---                         chompForMatchOnError val matches errFn parser
---
---                     ChompForMatchOrSkip matches errFn ->
---                         chompForMatchOrSkipOnError val matches errFn parser
---
---                     ChompThenRetry matches errFn ->
---                         chompThenRetryOnError matches errFn parser
---             , onError = s
---             }
---         )
 
 
 chompTill : List Char -> (String -> x) -> PA.Parser c x ( Bool, String, ( Int, Int ) )
