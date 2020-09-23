@@ -93,6 +93,12 @@ type alias Parser context problem value =
     PA.Parser context problem (Outcome context problem value)
 
 
+{-| Runs the parser. This differs from `Parser.run` in that it produces an
+`Outcome` instead of a `Result`. This allows for a `Partial` result when the
+parser recovers from an error. In this case the parser will still produce a
+result, but will also list the errors it encountered and was able to recover
+from.
+-}
 run : Parser c x a -> String -> Outcome c x a
 run parser input =
     case PA.run parser input of
@@ -155,6 +161,8 @@ type alias DeadEnd context problem =
     PA.DeadEnd context problem
 
 
+{-| Just like `Parser.inContext`.
+-}
 inContext : c -> Parser c x a -> Parser c x a
 inContext ctx parser =
     PA.inContext ctx parser
@@ -164,16 +172,55 @@ inContext ctx parser =
 -- Building Blocks
 
 
+{-| Just like `Parser.int` where you have to handle negation
+yourself. The only difference is that you provide a two potential problems:
+
+    int : x -> x -> Parser c x Int
+    int expecting invalid =
+        number
+            { int = Ok identity
+            , hex = Err invalid
+            , octal = Err invalid
+            , binary = Err invalid
+            , float = Err invalid
+            , invalid = invalid
+            , expecting = expecting
+            }
+
+You can use problems like `ExpectingInt` and `InvalidNumber`.
+
+-}
 int : x -> x -> Parser c x Int
 int expecting invalid =
     PA.int expecting invalid |> lift
 
 
+{-| Just like `Parser.float` where you have to handle negation yourself. The
+only difference is that you provide a two potential problems:
+
+    float : x -> x -> Parser c x Float
+    float expecting invalid =
+        number
+            { int = Ok toFloat
+            , hex = Err invalid
+            , octal = Err invalid
+            , binary = Err invalid
+            , float = Ok identity
+            , invalid = invalid
+            , expecting = expecting
+            }
+
+You can use problems like `ExpectingFloat` and `InvalidNumber`.
+
+-}
 float : x -> x -> Parser c x Float
 float expecting invalid =
     PA.float expecting invalid |> lift
 
 
+{-| Just like `Parser.number` where you have to handle negation yourself. The
+only difference is that you provide all the potential problems.
+-}
 number :
     { int : Result x (Int -> a)
     , hex : Result x (Int -> a)
@@ -188,16 +235,35 @@ number numDef =
     PA.number numDef |> lift
 
 
+{-| Just like `Parser.symbol` except you also provide a custom problem.
+
+    comma : Parser Context Problem ()
+    comma =
+        symbol "," ExpectingComma
+
+-}
 symbol : String -> x -> Parser c x ()
 symbol match prob =
     PA.Token match prob |> PA.symbol |> lift
 
 
+{-| Just like Parser.keyword except you provide a custom problem.
+
+    let_ : Parser Context Problem ()
+    let_ =
+        symbol "let" ExpectingLet
+
+Note that this would fail to chomp `letter` because of the subsequent
+characters. Use `token` if you do not want that last letter check.
+
+-}
 keyword : String -> x -> Parser c x ()
 keyword match prob =
     PA.Token match prob |> PA.keyword |> lift
 
 
+{-| Just like `Parser.variable` except you specify a custom problem.
+-}
 variable :
     { start : Char -> Bool
     , inner : Char -> Bool
@@ -209,6 +275,9 @@ variable varDef =
     PA.variable varDef |> lift
 
 
+{-| Just like `Parser.end`except you provide the problem that arises when the
+parser is not at the end of the input.
+-}
 end : x -> Parser c x ()
 end prob =
     PA.end prob |> lift
@@ -218,31 +287,56 @@ end prob =
 -- Pipelines
 
 
+{-| Just like `Parser.succeed`.
+-}
 succeed : a -> Parser c x a
 succeed val =
     PA.succeed (Success val)
 
 
+{-| Just like `Parser.problem` except you provide a custom problem.
+-}
 problem : x -> Parser c x a
 problem x =
     PA.problem x |> lift
 
 
+{-| This is a flipped version of `Parser.(|=)`.
+
+If either parser fails, the result of this will fail. If either parser produces
+a `Partial` result but not a `Failure`, the parsing will continue and carry
+forward any errors and produce a `Partial` result.
+
+-}
 keep : Parser c x a -> Parser c x (a -> b) -> Parser c x b
 keep parseArg parseFunc =
     map2 (<|) parseFunc parseArg
 
 
+{-| This is a flipped version of `Parser.(|-)`.
+
+If either parser fails, the result of this will fail. If either parser produces
+a `Partial` result but not a `Failure`, the parsing will continue and carry
+forward any errors and produce a `Partial` result.
+
+-}
 ignore : Parser c x ignore -> Parser c x keep -> Parser c x keep
 ignore ignoreParser keepParser =
     map2 always keepParser ignoreParser
 
 
+{-| Just like `Parser.lazy`.
+-}
 lazy : (() -> Parser c x a) -> Parser c x a
 lazy thunk =
     PA.lazy thunk
 
 
+{-| Just like `Parser.andThen`, except that parsing will continue if the parser
+produces a `Partial` result. Any errors attached to a `Partial` result will
+always be carried forward by the parser, so the overall result at the end will
+be `Partial`.
+-}
 andThen : (a -> Parser c x b) -> Parser c x a -> Parser c x b
 andThen fn parserA =
     parserA
@@ -273,11 +367,18 @@ andThen fn parserA =
 -- Branches
 
 
+{-| Just like `Parser.oneOf`.
+-}
 oneOf : List (Parser c x a) -> Parser c x a
 oneOf options =
     PA.oneOf options
 
 
+{-| Just like `Parser.map`, except that parsing will continue if the parser
+produces a `Partial` result. Any errors attached to a `Partial` result will
+always be carried forward by the parser, so the overall result at the end will
+be `Partial`.
+-}
 map : (a -> b) -> Parser c x a -> Parser c x b
 map fn parserA =
     (mapOutcome >> PA.map) fn parserA
@@ -305,16 +406,22 @@ map2 func parserA parserB =
             )
 
 
+{-| Just like `Parser.backtrackable`.
+-}
 backtrackable : Parser c x a -> Parser c x a
 backtrackable parser =
     PA.backtrackable parser
 
 
+{-| Just like `Parser.commit`.
+-}
 commit : a -> Parser c x a
 commit val =
     PA.commit val |> lift
 
 
+{-| Just like `Parser.token` except you provide a custom problem.
+-}
 token : String -> x -> Parser c x ()
 token match prob =
     PA.Token match prob |> PA.token |> lift
@@ -324,6 +431,8 @@ token match prob =
 -- Loops
 
 
+{-| Just like `Parser.sequence`.
+-}
 sequence :
     { start : ( String, x )
     , separator : ( String, x )
@@ -414,7 +523,7 @@ ignorer keepParser ignoreParser =
     ignore ignoreParser keepParser
 
 
-{-| The same as in Parser.Advanced.
+{-| Just like `Parser.Trailing`.
 -}
 type Trailing
     = Forbidden
@@ -422,6 +531,8 @@ type Trailing
     | Mandatory
 
 
+{-| Just like `Parser.loop`.
+-}
 loop : state -> (state -> Parser c x (Step state a)) -> Parser c x a
 loop state callback =
     callback state
@@ -436,7 +547,7 @@ loop state callback =
             )
 
 
-{-| The same as in Parser.Advanced.
+{-| Just like `Parser.Step`.
 -}
 type Step state a
     = Loop state
@@ -447,16 +558,22 @@ type Step state a
 -- Whitespace
 
 
+{-| Just like `Parser.x`.
+-}
 spaces : Parser c x ()
 spaces =
     PA.spaces |> lift
 
 
+{-| Just like `Parser.x`.
+-}
 lineComment : String -> x -> Parser c x ()
 lineComment match prob =
     PA.Token match prob |> PA.lineComment |> lift
 
 
+{-| Just like `Parser.x`.
+-}
 multiComment : String -> x -> String -> x -> Nestable -> Parser c x ()
 multiComment open openProb close closeProb nestable =
     let
@@ -475,7 +592,7 @@ multiComment open openProb close closeProb nestable =
         |> lift
 
 
-{-| The same as in Parser.Advanced.
+{-| Just like `Parser.x`.
 -}
 type Nestable
     = NotNestable
@@ -486,31 +603,43 @@ type Nestable
 -- Chompers
 
 
+{-| Just like `Parser.getChompedString`.
+-}
 getChompedString : Parser c x a -> Parser c x String
 getChompedString parser =
     mapChompedString always parser
 
 
+{-| Just like `Parser.chompIf`.
+-}
 chompIf : (Char -> Bool) -> x -> Parser c x ()
 chompIf fn prob =
     PA.chompIf fn prob |> lift
 
 
+{-| Just like `Parser.chompWhile`.
+-}
 chompWhile : (Char -> Bool) -> Parser c x ()
 chompWhile whileFn =
     PA.chompWhile whileFn |> lift
 
 
+{-| Just like `Parser.chompUntil`.
+-}
 chompUntil : String -> x -> Parser c x ()
 chompUntil match prob =
     PA.Token match prob |> PA.chompUntil |> lift
 
 
+{-| Just like `Parser.chompUntilEndOr`.
+-}
 chompUntilEndOr : String -> Parser c x ()
 chompUntilEndOr val =
     PA.chompUntilEndOr val |> lift
 
 
+{-| Just like `Parser.mapChompedString`.
+-}
 mapChompedString : (String -> a -> b) -> Parser c x a -> Parser c x b
 mapChompedString func parser =
     PA.mapChompedString
@@ -529,11 +658,15 @@ mapChompedString func parser =
 -- Indentation
 
 
+{-| Just like `Parser.getIndent`.
+-}
 getIndent : Parser c x Int
 getIndent =
     PA.getIndent |> lift
 
 
+{-| Just like `Parser.withIndent`.
+-}
 withIndent : Int -> Parser c x a -> Parser c x a
 withIndent newIndent parser =
     PA.withIndent newIndent parser
@@ -543,26 +676,36 @@ withIndent newIndent parser =
 -- Positions
 
 
+{-| Just like `Parser.getPosition`.
+-}
 getPosition : Parser c x ( Int, Int )
 getPosition =
     PA.getPosition |> lift
 
 
+{-| Just like `Parser.getRow`.
+-}
 getRow : Parser c x Int
 getRow =
     PA.getRow |> lift
 
 
+{-| Just like `Parser.getCol`.
+-}
 getCol : Parser c x Int
 getCol =
     PA.getCol |> lift
 
 
+{-| Just like `Parser.getOffset`.
+-}
 getOffset : Parser c x Int
 getOffset =
     PA.getOffset |> lift
 
 
+{-| Just like `Parser.getSource`.
+-}
 getSource : Parser c x String
 getSource =
     PA.getSource |> lift
@@ -572,6 +715,8 @@ getSource =
 -- Error Recovery Tactics
 
 
+{-| Silently ignore any failure.
+-}
 silent : a -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
 silent val parser =
     PA.oneOf
@@ -580,6 +725,8 @@ silent val parser =
         ]
 
 
+{-| Skip over a failure, but when one happens add an error to a `Partial` result.
+-}
 skip : a -> x -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
 skip val prob parser =
     PA.oneOf
@@ -588,6 +735,9 @@ skip val prob parser =
         ]
 
 
+{-| When parsing fails, attempt to fast-forward to one of a set of sential tokens.
+When this happens an error is added to a `Partial` result.
+-}
 forward : a -> List Char -> x -> (String -> x) -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
 forward val matches noMatchProb chompedProb parser =
     PA.oneOf
@@ -604,6 +754,10 @@ forward val matches noMatchProb chompedProb parser =
         ]
 
 
+{-| When parsing fails, attempt to fast-forward to one of a set of sential tokens,
+or if none can be found, skip over the failure. When this happens an error is
+added to a `Partial` result.
+-}
 forwardOrSkip : a -> List Char -> x -> (String -> x) -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
 forwardOrSkip val matches noMatchProb chompedProb parser =
     PA.oneOf
@@ -620,6 +774,15 @@ forwardOrSkip val matches noMatchProb chompedProb parser =
         ]
 
 
+{-| When parsing fails, backtrack, then attempt to fast-forward to one of a set
+of sential tokens.
+
+If a sential token is found, restart the parser just after it,
+and continue with an error added to a `Partial` result.
+
+If no sential token can be found, fail with the specified problem.
+
+-}
 forwardThenRetry : List Char -> x -> (String -> x) -> Parser c x a -> Parser c x a
 forwardThenRetry matches noMatchProb chompedProb parser =
     PA.loop []
