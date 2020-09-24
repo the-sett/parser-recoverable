@@ -100,6 +100,6 @@ parser =
                 , end = ( "]", ExpectingRSqBracket )
                 , spaces = PR.spaces
                 , item = PR.int ExpectingInt InvalidNumber
-                , trailing = PR.Mandatory
+                , trailing = PR.Forbidden
                 }
             )
