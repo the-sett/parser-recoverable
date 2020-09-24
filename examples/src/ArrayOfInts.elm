@@ -93,13 +93,16 @@ type Problem
 parser : PR.Parser Never Problem AST
 parser =
     PR.succeed ParsedOk
-        |> PR.keep
-            (PR.sequence
-                { start = ( "[", ExpectingLSqBracket )
-                , separator = ( ",", ExpectingComma )
-                , end = ( "]", ExpectingRSqBracket )
-                , spaces = PR.spaces
-                , item = PR.int ExpectingInt InvalidNumber
-                , trailing = PR.Forbidden
-                }
-            )
+        |> PR.keep sequence
+
+
+sequence : PR.Parser Never Problem (List Int)
+sequence =
+    PR.sequence
+        { start = ( "[", ExpectingLSqBracket )
+        , separator = ( ",", ExpectingComma )
+        , end = ( "]", ExpectingRSqBracket )
+        , spaces = PR.spaces
+        , item = PR.int ExpectingInt InvalidNumber
+        , trailing = PR.Forbidden
+        }
