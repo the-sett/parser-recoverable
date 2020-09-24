@@ -835,7 +835,7 @@ forward val matches noMatchProb chompedProb parser =
                     if res.matched then
                         partialAt ( res.row, res.col )
                             val
-                            (chompedProb res.matchedString res.chompedSentinal)
+                            (chompedProb res.discarded res.sentinal)
 
                     else
                         failureAt ( res.row, res.col )
@@ -862,7 +862,7 @@ forwardOrSkip val matches noMatchProb chompedProb parser =
                     if res.matched then
                         partialAt ( res.row, res.col )
                             val
-                            (chompedProb res.matchedString res.chompedSentinal)
+                            (chompedProb res.discarded res.sentinal)
 
                     else
                         partialAt ( res.row, res.col )
@@ -903,7 +903,7 @@ forwardThenRetry matches noMatchProb chompedProb parser =
                 , chompTillChar matches noMatchProb
                     |> PA.map
                         (\res ->
-                            if res.matchedString == "" then
+                            if res.discarded == "" then
                                 -- Failed to make any progress, so stop.
                                 Failure
                                     [ { row = res.row
@@ -918,7 +918,7 @@ forwardThenRetry matches noMatchProb chompedProb parser =
                                 -- No match, but something was chomped, so try again.
                                 { row = res.row
                                 , col = res.col
-                                , problem = chompedProb res.matchedString res.chompedSentinal
+                                , problem = chompedProb res.discarded res.sentinal
                                 , contextStack = []
                                 }
                                     :: warnings
@@ -941,8 +941,8 @@ lift parser =
 -}
 type alias FastForward =
     { matched : Bool
-    , matchedString : String
-    , chompedSentinal : String
+    , discarded : String
+    , sentinal : String
     , row : Int
     , col : Int
     }
@@ -951,10 +951,10 @@ type alias FastForward =
 chompTillChar : List Char -> x -> PA.Parser c x FastForward
 chompTillChar chars prob =
     PA.succeed
-        (\( row, col ) skipped ( flag, sentinal ) ->
-            { matched = flag
-            , matchedString = skipped
-            , chompedSentinal = sentinal
+        (\( row, col ) discarded ( matched, sentinal ) ->
+            { matched = matched
+            , discarded = discarded
+            , sentinal = sentinal
             , row = row
             , col = col
             }
@@ -985,10 +985,10 @@ chompTillToken tokens prob =
 
         _ ->
             PA.succeed
-                (\( row, col ) val flag ->
-                    { matched = flag
-                    , matchedString = val
-                    , chompedSentinal = ""
+                (\( row, col ) discarded ( matched, sentinal ) ->
+                    { matched = matched
+                    , discarded = discarded
+                    , sentinal = sentinal
                     , row = row
                     , col = col
                     }
@@ -998,9 +998,11 @@ chompTillToken tokens prob =
                         |> PA.getChompedString
                    )
                 |= PA.oneOf
-                    [ PA.map (always True)
-                        (PA.chompIf (\c -> List.member (Debug.log "matched" c) chars) prob)
-                    , PA.succeed False
+                    [ PA.succeed (\chompedString -> ( True, chompedString ))
+                        |= (PA.chompIf (\c -> List.member (Debug.log "matched" c) chars) prob
+                                |> PA.getChompedString
+                           )
+                    , PA.succeed ( False, "" )
                     ]
 
 
