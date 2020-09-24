@@ -1,4 +1,4 @@
-module Main exposing (main)
+module ListOfInts exposing (main)
 
 {-|
 
@@ -54,7 +54,9 @@ update msg model =
 view : Model -> Html Msg
 view model =
     div []
-        [ Html.input [ onInput NewInput ] [ text <| model.input ]
+        [ Html.text "Try entering some integers and non-integers separated by spaces."
+        , Html.br [] []
+        , Html.input [ onInput NewInput ] [ text <| model.input ]
         , Html.br [] []
         , Debug.toString model.parsed |> text
         ]
