@@ -825,20 +825,20 @@ A default value for `a` must be given, so that the parser can return something
 in the event of an error and succesful recovery.
 
 -}
-forward : a -> List Char -> x -> (String -> x) -> Parser c x a -> Parser c x a
+forward : a -> List Char -> x -> (String -> String -> x) -> Parser c x a -> Parser c x a
 forward val matches noMatchProb chompedProb parser =
     PA.oneOf
         [ PA.backtrackable parser
         , chompTillChar matches noMatchProb
             |> PA.andThen
-                (\forwardResult ->
-                    if forwardResult.matched then
-                        partialAt ( forwardResult.row, forwardResult.col )
+                (\res ->
+                    if res.matched then
+                        partialAt ( res.row, res.col )
                             val
-                            (chompedProb forwardResult.matchedString)
+                            (chompedProb res.matchedString res.chompedSentinal)
 
                     else
-                        failureAt ( forwardResult.row, forwardResult.col )
+                        failureAt ( res.row, res.col )
                             noMatchProb
                 )
         ]
@@ -852,20 +852,20 @@ A default value for `a` must be given, so that the parser can return something
 in the event of an error and succesful recovery.
 
 -}
-forwardOrSkip : a -> List Char -> x -> (String -> x) -> Parser c x a -> Parser c x a
+forwardOrSkip : a -> List Char -> x -> (String -> String -> x) -> Parser c x a -> Parser c x a
 forwardOrSkip val matches noMatchProb chompedProb parser =
     PA.oneOf
         [ PA.backtrackable parser
         , chompTillChar matches noMatchProb
             |> PA.andThen
-                (\forwardResult ->
-                    if forwardResult.matched then
-                        partialAt ( forwardResult.row, forwardResult.col )
+                (\res ->
+                    if res.matched then
+                        partialAt ( res.row, res.col )
                             val
-                            (chompedProb forwardResult.matchedString)
+                            (chompedProb res.matchedString res.chompedSentinal)
 
                     else
-                        partialAt ( forwardResult.row, forwardResult.col )
+                        partialAt ( res.row, res.col )
                             val
                             noMatchProb
                 )
@@ -887,7 +887,7 @@ Note that no default value for `a` is needed with this recovery tactic. This
 tactic will retry until it succeeds or fails altogether.
 
 -}
-forwardThenRetry : List Char -> x -> (String -> x) -> Parser c x a -> Parser c x a
+forwardThenRetry : List Char -> x -> (String -> String -> x) -> Parser c x a -> Parser c x a
 forwardThenRetry matches noMatchProb chompedProb parser =
     PA.loop []
         (\warnings ->
@@ -902,12 +902,12 @@ forwardThenRetry matches noMatchProb chompedProb parser =
                     |= PA.backtrackable parser
                 , chompTillChar matches noMatchProb
                     |> PA.map
-                        (\forwardResult ->
-                            if forwardResult.matchedString == "" then
+                        (\res ->
+                            if res.matchedString == "" then
                                 -- Failed to make any progress, so stop.
                                 Failure
-                                    [ { row = forwardResult.row
-                                      , col = forwardResult.col
+                                    [ { row = res.row
+                                      , col = res.col
                                       , problem = noMatchProb
                                       , contextStack = []
                                       }
@@ -916,9 +916,9 @@ forwardThenRetry matches noMatchProb chompedProb parser =
 
                             else
                                 -- No match, but something was chomped, so try again.
-                                { row = forwardResult.row
-                                , col = forwardResult.col
-                                , problem = chompedProb forwardResult.matchedString
+                                { row = res.row
+                                , col = res.col
+                                , problem = chompedProb res.matchedString res.chompedSentinal
                                 , contextStack = []
                                 }
                                     :: warnings
@@ -940,15 +940,21 @@ lift parser =
 {-| The outcome of an attempted fast-forarding.
 -}
 type alias FastForward =
-    { matched : Bool, matchedString : String, row : Int, col : Int }
+    { matched : Bool
+    , matchedString : String
+    , chompedSentinal : String
+    , row : Int
+    , col : Int
+    }
 
 
 chompTillChar : List Char -> x -> PA.Parser c x FastForward
 chompTillChar chars prob =
     PA.succeed
-        (\( row, col ) val flag ->
+        (\( row, col ) skipped ( flag, sentinal ) ->
             { matched = flag
-            , matchedString = val
+            , matchedString = skipped
+            , chompedSentinal = sentinal
             , row = row
             , col = col
             }
@@ -958,9 +964,11 @@ chompTillChar chars prob =
                 |> PA.getChompedString
            )
         |= PA.oneOf
-            [ PA.map (always True)
-                (PA.chompIf (\c -> List.member (Debug.log "matched" c) chars) prob)
-            , PA.succeed False
+            [ PA.succeed (\chompedString -> ( True, chompedString ))
+                |= (PA.chompIf (\c -> List.member (Debug.log "matched" c) chars) prob
+                        |> PA.getChompedString
+                   )
+            , PA.succeed ( False, "" )
             ]
 
 
@@ -980,6 +988,7 @@ chompTillToken tokens prob =
                 (\( row, col ) val flag ->
                     { matched = flag
                     , matchedString = val
+                    , chompedSentinal = ""
                     , row = row
                     , col = col
                     }

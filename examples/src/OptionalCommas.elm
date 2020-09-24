@@ -85,7 +85,7 @@ type Problem
     | ExpectingComma
     | ExpectingInt
     | InvalidNumber
-    | Discarded String
+    | Discarded String String
 
 
 parser : PR.Parser Never Problem AST
