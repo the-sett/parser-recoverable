@@ -829,14 +829,17 @@ forward : a -> List Char -> x -> (String -> x) -> Parser c x a -> Parser c x a
 forward val matches noMatchProb chompedProb parser =
     PA.oneOf
         [ PA.backtrackable parser
-        , chompTill matches noMatchProb
+        , chompTillChar matches noMatchProb
             |> PA.andThen
-                (\( foundMatch, chompedString, pos ) ->
-                    if foundMatch then
-                        partialAt pos val (chompedProb chompedString)
+                (\forwardResult ->
+                    if forwardResult.matched then
+                        partialAt ( forwardResult.row, forwardResult.col )
+                            val
+                            (chompedProb forwardResult.matchedString)
 
                     else
-                        failureAt pos noMatchProb
+                        failureAt ( forwardResult.row, forwardResult.col )
+                            noMatchProb
                 )
         ]
 
@@ -853,14 +856,18 @@ forwardOrSkip : a -> List Char -> x -> (String -> x) -> Parser c x a -> Parser c
 forwardOrSkip val matches noMatchProb chompedProb parser =
     PA.oneOf
         [ PA.backtrackable parser
-        , chompTill matches noMatchProb
+        , chompTillChar matches noMatchProb
             |> PA.andThen
-                (\( foundMatch, chompedString, pos ) ->
-                    if foundMatch then
-                        partialAt pos val (chompedProb chompedString)
+                (\forwardResult ->
+                    if forwardResult.matched then
+                        partialAt ( forwardResult.row, forwardResult.col )
+                            val
+                            (chompedProb forwardResult.matchedString)
 
                     else
-                        partialAt pos val noMatchProb
+                        partialAt ( forwardResult.row, forwardResult.col )
+                            val
+                            noMatchProb
                 )
         ]
 
@@ -893,14 +900,14 @@ forwardThenRetry matches noMatchProb chompedProb parser =
                             |> PA.Done
                     )
                     |= PA.backtrackable parser
-                , chompTill matches noMatchProb
+                , chompTillChar matches noMatchProb
                     |> PA.map
-                        (\( foundMatch, chompedString, ( row, col ) ) ->
-                            if chompedString == "" then
+                        (\forwardResult ->
+                            if forwardResult.matchedString == "" then
                                 -- Failed to make any progress, so stop.
                                 Failure
-                                    [ { row = row
-                                      , col = col
+                                    [ { row = forwardResult.row
+                                      , col = forwardResult.col
                                       , problem = noMatchProb
                                       , contextStack = []
                                       }
@@ -909,9 +916,9 @@ forwardThenRetry matches noMatchProb chompedProb parser =
 
                             else
                                 -- No match, but something was chomped, so try again.
-                                { row = row
-                                , col = col
-                                , problem = chompedProb chompedString
+                                { row = forwardResult.row
+                                , col = forwardResult.col
+                                , problem = chompedProb forwardResult.matchedString
                                 , contextStack = []
                                 }
                                     :: warnings
@@ -930,9 +937,22 @@ lift parser =
     PA.map Success parser
 
 
-chompTill : List Char -> x -> PA.Parser c x ( Bool, String, ( Int, Int ) )
-chompTill chars prob =
-    PA.succeed (\pos val flag -> ( flag, val, pos ))
+{-| The outcome of an attempted fast-forarding.
+-}
+type alias FastForward =
+    { matched : Bool, matchedString : String, row : Int, col : Int }
+
+
+chompTillChar : List Char -> x -> PA.Parser c x FastForward
+chompTillChar chars prob =
+    PA.succeed
+        (\( row, col ) val flag ->
+            { matched = flag
+            , matchedString = val
+            , row = row
+            , col = col
+            }
+        )
         |= PA.getPosition
         |= (PA.chompWhile (\c -> not <| List.member (Debug.log "skipping" c) chars)
                 |> PA.getChompedString
@@ -942,6 +962,37 @@ chompTill chars prob =
                 (PA.chompIf (\c -> List.member (Debug.log "matched" c) chars) prob)
             , PA.succeed False
             ]
+
+
+chompTillToken : List String -> x -> PA.Parser c x FastForward
+chompTillToken tokens prob =
+    let
+        chars =
+            List.map (\val -> String.uncons val |> Maybe.map Tuple.first) tokens
+                |> values
+    in
+    case chars of
+        [] ->
+            PA.problem prob
+
+        _ ->
+            PA.succeed
+                (\( row, col ) val flag ->
+                    { matched = flag
+                    , matchedString = val
+                    , row = row
+                    , col = col
+                    }
+                )
+                |= PA.getPosition
+                |= (PA.chompWhile (\c -> not <| List.member (Debug.log "skipping" c) chars)
+                        |> PA.getChompedString
+                   )
+                |= PA.oneOf
+                    [ PA.map (always True)
+                        (PA.chompIf (\c -> List.member (Debug.log "matched" c) chars) prob)
+                    , PA.succeed False
+                    ]
 
 
 partial : a -> x -> PA.Parser c x (Outcome c x a)
@@ -988,3 +1039,18 @@ failureAt ( row, col ) prob =
           }
         ]
         |> PA.succeed
+
+
+values : List (Maybe a) -> List a
+values maybeList =
+    List.foldr
+        (\maybeVal accum ->
+            case maybeVal of
+                Just val ->
+                    val :: accum
+
+                Nothing ->
+                    accum
+        )
+        []
+        maybeList
