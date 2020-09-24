@@ -19,6 +19,7 @@ module Main exposing (main)
 import Browser
 import Html exposing (Html, button, div, text)
 import Html.Events exposing (onClick, onInput)
+import Maybe.Extra
 import Parser.Advanced as PA exposing ((|.), (|=))
 import Parser.Recoverable as PR exposing (Outcome(..))
 
@@ -105,32 +106,10 @@ loop =
                     |> PR.keep
                         (PR.succeed identity
                             |> PR.ignore PR.spaces
-                            |> PR.keep (PR.int ExpectingInt InvalidNumber)
+                            |> PR.keep (PR.int ExpectingInt InvalidNumber |> PR.map Just)
                             |> PR.ignore PR.spaces
-                            |> PR.forwardThenRetry [ ' ' ] ExpectingSpace Discarded
+                            |> PR.forwardOrSkip Nothing [ ' ' ] ExpectingSpace Discarded
                         )
                 ]
         )
-
-
-
--- loop : PR.Parser Never Problem (List Int)
--- loop =
---     PR.loop []
---         (\vals ->
---             PR.succeed
---                 (\val ->
---                     if List.length vals < 2 then
---                         val :: vals |> PR.Loop
---
---                     else
---                         val :: vals |> PR.Done
---                 )
---                 |> PR.keep
---                     (PR.succeed identity
---                         |> PR.ignore PR.spaces
---                         |> PR.keep (PR.int ExpectingInt InvalidNumber)
---                         |> PR.ignore PR.spaces
---                         |> PR.forwardThenRetry [ ' ' ] ExpectingComma Recovered
---                     )
---         )
+        |> PR.map Maybe.Extra.values

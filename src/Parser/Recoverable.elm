@@ -38,9 +38,9 @@ Another way you could use them, is to use `Nothing` as the default value.
 
 For these recovery tactics, no default value for `a` is needed. These all use
 a retry loop, so that they will eventually succeed or fail altogether. These
-recovery tactics are most useful when parsing a sequence of many things, with
-the aim of putting the parser back on track if some of the things contain
-syntax errors.
+recovery tactics are most useful when parsing a sequence of many things and at
+least one thing, with the aim of putting the parser back on track if some of
+the things contain syntax errors.
 
 @docs forwardThenRetry
 
@@ -754,10 +754,10 @@ A default value for `a` must be given, so that the parser can return something
 in the event of an error and succesful recovery.
 
 -}
-silent : a -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
+silent : a -> Parser c x a -> Parser c x a
 silent val parser =
     PA.oneOf
-        [ PA.map Success parser
+        [ parser
         , PA.succeed (Success val)
         ]
 
@@ -768,10 +768,10 @@ A default value for `a` must be given, so that the parser can return something
 in the event of an error and succesful recovery.
 
 -}
-skip : a -> x -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
+skip : a -> x -> Parser c x a -> Parser c x a
 skip val prob parser =
     PA.oneOf
-        [ PA.map Success parser
+        [ parser
         , partial val prob
         ]
 
@@ -783,10 +783,10 @@ A default value for `a` must be given, so that the parser can return something
 in the event of an error and succesful recovery.
 
 -}
-forward : a -> List Char -> x -> (String -> x) -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
+forward : a -> List Char -> x -> (String -> x) -> Parser c x a -> Parser c x a
 forward val matches noMatchProb chompedProb parser =
     PA.oneOf
-        [ PA.map Success parser
+        [ PA.backtrackable parser
         , chompTill matches noMatchProb
             |> PA.andThen
                 (\( foundMatch, chompedString, pos ) ->
@@ -807,10 +807,10 @@ A default value for `a` must be given, so that the parser can return something
 in the event of an error and succesful recovery.
 
 -}
-forwardOrSkip : a -> List Char -> x -> (String -> x) -> PA.Parser c x a -> PA.Parser c x (Outcome c x a)
+forwardOrSkip : a -> List Char -> x -> (String -> x) -> Parser c x a -> Parser c x a
 forwardOrSkip val matches noMatchProb chompedProb parser =
     PA.oneOf
-        [ PA.map Success parser
+        [ PA.backtrackable parser
         , chompTill matches noMatchProb
             |> PA.andThen
                 (\( foundMatch, chompedString, pos ) ->
