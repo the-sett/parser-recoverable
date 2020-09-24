@@ -80,10 +80,7 @@ type AST
 
 
 type Problem
-    = ExpectingStartBrace
-    | ExpectingEndBrace
-    | ExpectingComma
-    | ExpectingEnd
+    = ExpectingEnd
     | ExpectingSpace
     | ExpectingInt
     | InvalidNumber
