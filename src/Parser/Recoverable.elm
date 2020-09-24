@@ -480,12 +480,26 @@ sequence seqDef =
         tokenParser ( match, prob ) =
             token match prob
     in
-    sequenceEnd (tokenParser seqDef.end) seqDef.spaces seqDef.item (tokenParser seqDef.separator) seqDef.trailing
-        |> ignore seqDef.spaces
+    succeed identity
         |> ignore (tokenParser seqDef.start)
+        |> ignore seqDef.spaces
+        |> keep
+            (sequenceEnd
+                (tokenParser seqDef.end)
+                seqDef.spaces
+                seqDef.item
+                (tokenParser seqDef.separator)
+                seqDef.trailing
+            )
 
 
-sequenceEnd : Parser c x () -> Parser c x () -> Parser c x a -> Parser c x () -> Trailing -> Parser c x (List a)
+sequenceEnd :
+    Parser c x ()
+    -> Parser c x ()
+    -> Parser c x a
+    -> Parser c x ()
+    -> Trailing
+    -> Parser c x (List a)
 sequenceEnd ender ws parseItem sep trailing =
     let
         chompRest item =
@@ -497,63 +511,91 @@ sequenceEnd ender ws parseItem sep trailing =
                     loop [ item ] (sequenceEndOptional ender ws parseItem sep)
 
                 Mandatory ->
-                    ignorer
-                        (ignore ws <|
-                            ignore sep <|
-                                ignore ws <|
-                                    loop [ item ] (sequenceEndMandatory ws parseItem sep)
-                        )
-                        ender
+                    succeed identity
+                        |> ignore ws
+                        |> ignore sep
+                        |> ignore ws
+                        |> keep (loop [ item ] (sequenceEndMandatory ws parseItem sep))
+                        |> ignore ender
     in
     oneOf
-        [ parseItem |> andThen chompRest
-        , ender |> map (\_ -> [])
+        [ parseItem
+            |> andThen chompRest
+        , ender
+            |> map (\_ -> [])
         ]
 
 
-sequenceEndForbidden : Parser c x () -> Parser c x () -> Parser c x a -> Parser c x () -> List a -> Parser c x (Step (List a) (List a))
+sequenceEndForbidden :
+    Parser c x ()
+    -> Parser c x ()
+    -> Parser c x a
+    -> Parser c x ()
+    -> List a
+    -> Parser c x (Step (List a) (List a))
 sequenceEndForbidden ender ws parseItem sep revItems =
-    let
-        chompRest item =
-            sequenceEndForbidden ender ws parseItem sep (item :: revItems)
-    in
-    ignore ws <|
-        oneOf
-            [ ignore sep <| ignore ws <| map (\item -> Loop (item :: revItems)) parseItem
-            , ender |> map (\_ -> Done (List.reverse revItems))
-            ]
+    succeed identity
+        |> ignore ws
+        |> keep
+            (oneOf
+                [ succeed identity
+                    |> ignore sep
+                    |> ignore ws
+                    |> keep parseItem
+                    |> map (\item -> Loop (item :: revItems))
+                , ender
+                    |> map (\_ -> Done (List.reverse revItems))
+                ]
+            )
 
 
-sequenceEndOptional : Parser c x () -> Parser c x () -> Parser c x a -> Parser c x () -> List a -> Parser c x (Step (List a) (List a))
+sequenceEndOptional :
+    Parser c x ()
+    -> Parser c x ()
+    -> Parser c x a
+    -> Parser c x ()
+    -> List a
+    -> Parser c x (Step (List a) (List a))
 sequenceEndOptional ender ws parseItem sep revItems =
     let
         parseEnd =
             map (\_ -> Done (List.reverse revItems)) ender
     in
-    ignore ws <|
-        oneOf
-            [ ignore sep <|
-                ignore ws <|
-                    oneOf
-                        [ parseItem |> map (\item -> Loop (item :: revItems))
-                        , parseEnd
-                        ]
-            , parseEnd
-            ]
+    succeed identity
+        |> ignore ws
+        |> keep
+            (oneOf
+                [ succeed identity
+                    |> ignore sep
+                    |> ignore ws
+                    |> keep
+                        (oneOf
+                            [ parseItem |> map (\item -> Loop (item :: revItems))
+                            , parseEnd
+                            ]
+                        )
+                , parseEnd
+                ]
+            )
 
 
-sequenceEndMandatory : Parser c x () -> Parser c x a -> Parser c x () -> List a -> Parser c x (Step (List a) (List a))
+sequenceEndMandatory :
+    Parser c x ()
+    -> Parser c x a
+    -> Parser c x ()
+    -> List a
+    -> Parser c x (Step (List a) (List a))
 sequenceEndMandatory ws parseItem sep revItems =
     oneOf
-        [ map (\item -> Loop (item :: revItems)) <|
-            ignorer parseItem (ignorer ws (ignorer sep ws))
-        , map (\_ -> Done (List.reverse revItems)) (succeed ())
+        [ succeed identity
+            |> keep parseItem
+            |> ignore ws
+            |> ignore sep
+            |> ignore ws
+            |> map (\item -> Loop (item :: revItems))
+        , succeed ()
+            |> map (\_ -> Done (List.reverse revItems) |> Debug.log "mandatory end")
         ]
-
-
-ignorer : Parser c x keep -> Parser c x ignore -> Parser c x keep
-ignorer keepParser ignoreParser =
-    ignore ignoreParser keepParser
 
 
 {-| Just like `Parser.Trailing`.
