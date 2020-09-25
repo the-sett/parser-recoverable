@@ -26,14 +26,15 @@ module Parser.Recoverable exposing
 For these recovery tactics, a default value for `a` must be given, so that the
 parser can return something in the event of an error.
 
-The aim is not to error correct parsed values like integers, but to get the parser
-back to a state where it can continue running, whilst skipping out some part of the
-input. For this reason, a default value that is an `Int` or `String` is not such
-a useful choice here.
+The aim is not to error correct parsed values (like an integer), but to get the
+parser back to a state where it can continue running, whilst skipping out some
+part of the input. For this reason, a value type for something being parsed out
+of the text, such as an `Int` or `String`, is not such a useful choice here.
 
 If skipping over some keyword or symbol or chomping characters, the parser will be
 of the form `Parser c x ()`. In this case, it is easy to give `()` as the default
-value.
+value. The symbol or keyword will be counted as being there silently, with a warning,
+or will act as a sentinal token that parsing will forward to, then try to continue.
 
 Another common way to recover is when parsing a sequence of things, to skip any
 things which are not syntactically correct. In this situation you might use
@@ -855,22 +856,24 @@ in the event of an error and succesful recovery.
 -}
 forwardOrSkip : a -> List String -> x -> (String -> String -> x) -> Parser c x a -> Parser c x a
 forwardOrSkip val matches noMatchProb chompedProb parser =
-    PA.oneOf
-        [ PA.backtrackable parser
-        , chompTillToken matches noMatchProb
-            |> PA.andThen
-                (\res ->
-                    if res.matched then
-                        partialAt ( res.row, res.col )
-                            val
-                            (chompedProb res.discarded res.sentinal)
-
-                    else
-                        partialAt ( res.row, res.col )
-                            val
-                            noMatchProb
-                )
-        ]
+    -- PA.oneOf
+    --     [ PA.backtrackable parser
+    --     , chompTillToken matches noMatchProb
+    --         |> PA.andThen
+    --             (\res ->
+    --                 if res.matched then
+    --                     partialAt ( res.row, res.col )
+    --                         val
+    --                         (chompedProb res.discarded res.sentinal)
+    --
+    --                 else
+    --                     partialAt ( res.row, res.col )
+    --                         val
+    --                         noMatchProb
+    --             )
+    --     ]
+    forward val matches noMatchProb chompedProb parser
+        |> skip val noMatchProb
 
 
 {-| When parsing fails, backtrack, then attempt to fast-forward to one of a set
