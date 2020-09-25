@@ -1,7 +1,6 @@
 module Parser.Recoverable exposing
     ( Parser, run, Outcome(..)
     , silent, skip, forward, forwardOrSkip
-    , forwardThenRetry
     , DeadEnd, inContext
     , int, float, number, symbol, keyword, variable, end
     , ignore, keep
@@ -25,24 +24,26 @@ module Parser.Recoverable exposing
 # Recovery Tactics with Default Value
 
 For these recovery tactics, a default value for `a` must be given, so that the
-parser can return something in the event of an error. These recovery tactics
-are most useful when combined with parsers of the form `Parser c x ()`, such as
-when consuming a `keyword` or `symbol` or chomping some characters and so on.
+parser can return something in the event of an error.
 
-Another way you could use them, is to use `Nothing` as the default value.
+The aim is not to error correct parsed values like integers, but to get the parser
+back to a state where it can continue running, whilst skipping out some part of the
+input. For this reason, a default value that is an `Int` or `String` is not such
+a useful choice here.
+
+If skipping over some keyword or symbol or chomping characters, the parser will be
+of the form `Parser c x ()`. In this case, it is easy to give `()` as the default
+value.
+
+Another common way to recover is when parsing a sequence of things, to skip any
+things which are not syntactically correct. In this situation you might use
+`Nothing` as the default value. You can use `Maybe.Extra.value` to convert a
+`List (Maybe a)` to a `List a`, in this case.
+
+Some other useful default values might be `[]`, or `Dict.empty` or `Set.empty`
+and so on.
 
 @docs silent, skip, forward, forwardOrSkip
-
-
-# Recovery Tactics without Default Value
-
-For these recovery tactics, no default value for `a` is needed. These all use
-a retry loop, so that they will eventually succeed or fail altogether. These
-recovery tactics are most useful when parsing a sequence of many things and at
-least one thing, with the aim of putting the parser back on track if some of
-the things contain syntax errors.
-
-@docs forwardThenRetry
 
 ---
 
@@ -946,31 +947,6 @@ type alias FastForward =
     , row : Int
     , col : Int
     }
-
-
-
--- chompTillChar : List Char -> x -> PA.Parser c x FastForward
--- chompTillChar chars prob =
---     PA.succeed
---         (\( row, col ) discarded ( matched, sentinal ) ->
---             { matched = matched
---             , discarded = discarded
---             , sentinal = sentinal
---             , row = row
---             , col = col
---             }
---         )
---         |= PA.getPosition
---         |= (PA.chompWhile (\c -> not <| List.member (Debug.log "skipping" c) chars)
---                 |> PA.getChompedString
---            )
---         |= PA.oneOf
---             [ PA.succeed (\chompedString -> ( True, chompedString ))
---                 |= (PA.chompIf (\c -> List.member (Debug.log "matched" c) chars) prob
---                         |> PA.getChompedString
---                    )
---             , PA.succeed ( False, "" )
---             ]
 
 
 chompTillToken : List String -> x -> PA.Parser c x FastForward
