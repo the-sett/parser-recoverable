@@ -2,10 +2,10 @@ module Parser.Recoverable exposing
     ( Parser, run, Outcome(..)
     , optional, skip, forward, forwardOrSkip
     , DeadEnd, inContext
-    , int, float, number, symbol, keyword, variable, end
+    , int, float, number, symbol, keyword, variable, token, end
     , ignore, keep
     , succeed, lazy, andThen, problem
-    , oneOf, map, backtrackable, commit, token
+    , oneOf, map, backtrackable, commit
     , sequence, Trailing(..), loop, Step(..)
     , spaces, lineComment, multiComment, Nestable(..)
     , getChompedString, chompIf, chompWhile, chompUntil, chompUntilEndOr, mapChompedString
@@ -76,7 +76,7 @@ differences:**
 
 # Building Blocks
 
-@docs int, float, number, symbol, keyword, variable, end
+@docs int, float, number, symbol, keyword, variable, token, end
 
 
 # Pipelines
@@ -87,7 +87,7 @@ differences:**
 
 # Branches
 
-@docs oneOf, map, backtrackable, commit, token
+@docs oneOf, map, backtrackable, commit
 
 
 # Loops
@@ -823,6 +823,15 @@ skip val prob parser =
 {-| When parsing fails, attempt to fast-forward to one of a set of sentinal tokens.
 When this happens an error is added to a `Partial` result.
 
+When called with these arguments:
+
+    forward val matches noMatchProb chompedProb parser
+
+Note that the `chompedProb` argument has the type `(String -> String -> x)`.
+This is called with the string being skipped over, and the matched token being
+consumed. This information will be combined with its position in the input text,
+in the error added to the `Partial` result.
+
 A default value for `a` must be given, so that the parser can return something
 in the event of an error and succesful recovery.
 
@@ -848,7 +857,17 @@ forward val matches noMatchProb chompedProb parser =
 
 {-| When parsing fails, attempt to fast-forward to one of a set of sentinal tokens,
 or if none can be found, skip over the failure. When this happens an error is
-added to a `Partial` result.
+added to a `Partial` result. This is equivalent to doing a `forward` and then a
+`skip`:
+
+    forwardOrSkip val matches noMatchProb chompedProb parser =
+        forward val matches noMatchProb chompedProb parser
+            |> skip val noMatchProb
+
+Note that the `chompedProb` argument has the type `(String -> String -> x)`.
+This is called with the string being skipped over, and the matched token being
+consumed. This information will be combined with its position in the input text,
+in the error added to the `Partial` result.
 
 A default value for `a` must be given, so that the parser can return something
 in the event of an error and succesful recovery.
