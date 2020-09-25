@@ -1,21 +1,5 @@
 module ArrayOfInts exposing (main)
 
-{-|
-
-@docs Parser, try
-
-@docs Token, token, keyword, symbol, OnError, skip, fastForwardTo, stopWith
-
-@docs succeed, ignore, keep
-
-@docs oneOf
-
-@docs chompWhile
-
-@docs map
-
--}
-
 import Browser
 import Html exposing (Html, button, div, text)
 import Html.Events exposing (onClick, onInput)
