@@ -825,11 +825,11 @@ A default value for `a` must be given, so that the parser can return something
 in the event of an error and succesful recovery.
 
 -}
-forward : a -> List Char -> x -> (String -> String -> x) -> Parser c x a -> Parser c x a
+forward : a -> List String -> x -> (String -> String -> x) -> Parser c x a -> Parser c x a
 forward val matches noMatchProb chompedProb parser =
     PA.oneOf
         [ PA.backtrackable parser
-        , chompTillChar matches noMatchProb
+        , chompTillToken matches noMatchProb
             |> PA.andThen
                 (\res ->
                     if res.matched then
@@ -852,11 +852,11 @@ A default value for `a` must be given, so that the parser can return something
 in the event of an error and succesful recovery.
 
 -}
-forwardOrSkip : a -> List Char -> x -> (String -> String -> x) -> Parser c x a -> Parser c x a
+forwardOrSkip : a -> List String -> x -> (String -> String -> x) -> Parser c x a -> Parser c x a
 forwardOrSkip val matches noMatchProb chompedProb parser =
     PA.oneOf
         [ PA.backtrackable parser
-        , chompTillChar matches noMatchProb
+        , chompTillToken matches noMatchProb
             |> PA.andThen
                 (\res ->
                     if res.matched then
@@ -887,7 +887,7 @@ Note that no default value for `a` is needed with this recovery tactic. This
 tactic will retry until it succeeds or fails altogether.
 
 -}
-forwardThenRetry : List Char -> x -> (String -> String -> x) -> Parser c x a -> Parser c x a
+forwardThenRetry : List String -> x -> (String -> String -> x) -> Parser c x a -> Parser c x a
 forwardThenRetry matches noMatchProb chompedProb parser =
     PA.loop []
         (\warnings ->
@@ -900,7 +900,7 @@ forwardThenRetry matches noMatchProb chompedProb parser =
                             |> PA.Done
                     )
                     |= PA.backtrackable parser
-                , chompTillChar matches noMatchProb
+                , chompTillToken matches noMatchProb
                     |> PA.map
                         (\res ->
                             if res.discarded == "" then
@@ -948,28 +948,29 @@ type alias FastForward =
     }
 
 
-chompTillChar : List Char -> x -> PA.Parser c x FastForward
-chompTillChar chars prob =
-    PA.succeed
-        (\( row, col ) discarded ( matched, sentinal ) ->
-            { matched = matched
-            , discarded = discarded
-            , sentinal = sentinal
-            , row = row
-            , col = col
-            }
-        )
-        |= PA.getPosition
-        |= (PA.chompWhile (\c -> not <| List.member (Debug.log "skipping" c) chars)
-                |> PA.getChompedString
-           )
-        |= PA.oneOf
-            [ PA.succeed (\chompedString -> ( True, chompedString ))
-                |= (PA.chompIf (\c -> List.member (Debug.log "matched" c) chars) prob
-                        |> PA.getChompedString
-                   )
-            , PA.succeed ( False, "" )
-            ]
+
+-- chompTillChar : List Char -> x -> PA.Parser c x FastForward
+-- chompTillChar chars prob =
+--     PA.succeed
+--         (\( row, col ) discarded ( matched, sentinal ) ->
+--             { matched = matched
+--             , discarded = discarded
+--             , sentinal = sentinal
+--             , row = row
+--             , col = col
+--             }
+--         )
+--         |= PA.getPosition
+--         |= (PA.chompWhile (\c -> not <| List.member (Debug.log "skipping" c) chars)
+--                 |> PA.getChompedString
+--            )
+--         |= PA.oneOf
+--             [ PA.succeed (\chompedString -> ( True, chompedString ))
+--                 |= (PA.chompIf (\c -> List.member (Debug.log "matched" c) chars) prob
+--                         |> PA.getChompedString
+--                    )
+--             , PA.succeed ( False, "" )
+--             ]
 
 
 chompTillToken : List String -> x -> PA.Parser c x FastForward
@@ -978,32 +979,50 @@ chompTillToken tokens prob =
         chars =
             List.map (\val -> String.uncons val |> Maybe.map Tuple.first) tokens
                 |> values
+
+        tokenParsers =
+            List.map (\val -> PA.token (PA.Token val prob) |> PA.getChompedString) tokens
     in
     case chars of
         [] ->
             PA.problem prob
 
         _ ->
-            PA.succeed
-                (\( row, col ) discarded ( matched, sentinal ) ->
-                    { matched = matched
-                    , discarded = discarded
-                    , sentinal = sentinal
-                    , row = row
-                    , col = col
-                    }
-                )
-                |= PA.getPosition
-                |= (PA.chompWhile (\c -> not <| List.member (Debug.log "skipping" c) chars)
-                        |> PA.getChompedString
-                   )
-                |= PA.oneOf
-                    [ PA.succeed (\chompedString -> ( True, chompedString ))
-                        |= (PA.chompIf (\c -> List.member (Debug.log "matched" c) chars) prob
+            PA.loop ""
+                (\discardAccum ->
+                    PA.succeed
+                        (\( row, col ) discarded ( matched, sentinal ) ->
+                            if matched then
+                                PA.Done
+                                    { matched = matched
+                                    , discarded = discarded
+                                    , sentinal = sentinal
+                                    , row = row
+                                    , col = col
+                                    }
+
+                            else if discarded == "" then
+                                PA.Done
+                                    { matched = matched
+                                    , discarded = discarded
+                                    , sentinal = sentinal
+                                    , row = row
+                                    , col = col
+                                    }
+
+                            else
+                                discardAccum ++ discarded |> PA.Loop
+                        )
+                        |= PA.getPosition
+                        |= (PA.chompWhile (\c -> not <| List.member (Debug.log "skipping" c) chars)
                                 |> PA.getChompedString
                            )
-                    , PA.succeed ( False, "" )
-                    ]
+                        |= PA.oneOf
+                            [ PA.succeed (\chompedString -> ( True, chompedString ))
+                                |= PA.oneOf tokenParsers
+                            , PA.succeed ( False, "" )
+                            ]
+                )
 
 
 partial : a -> x -> PA.Parser c x (Outcome c x a)

@@ -107,7 +107,7 @@ loop =
                             |> PR.ignore PR.spaces
                             |> PR.keep (PR.int ExpectingInt InvalidNumber |> PR.map Just)
                             |> PR.ignore PR.spaces
-                            |> PR.forwardOrSkip Nothing [ ' ' ] ExpectingSpace Discarded
+                            |> PR.forwardOrSkip Nothing [ " " ] ExpectingSpace Discarded
                         )
                 ]
         )
