@@ -1,6 +1,6 @@
 module Parser.Recoverable exposing
     ( Parser, run, Outcome(..)
-    , silent, skip, forward, forwardOrSkip
+    , optional, skip, forward, forwardOrSkip
     , DeadEnd, inContext
     , int, float, number, symbol, keyword, variable, end
     , ignore, keep
@@ -44,7 +44,7 @@ things which are not syntactically correct. In this situation you might use
 Some other useful default values might be `[]`, or `Dict.empty` or `Set.empty`
 and so on.
 
-@docs silent, skip, forward, forwardOrSkip
+@docs optional, skip, forward, forwardOrSkip
 
 ---
 
@@ -798,8 +798,8 @@ A default value for `a` must be given, so that the parser can return something
 in the event of an error and succesful recovery.
 
 -}
-silent : a -> Parser c x a -> Parser c x a
-silent val parser =
+optional : a -> Parser c x a -> Parser c x a
+optional val parser =
     PA.oneOf
         [ parser
         , PA.succeed (Success val)
