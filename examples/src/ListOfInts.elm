@@ -58,7 +58,7 @@ view model =
         , Html.br [] []
         , Html.input [ onInput NewInput ] [ text <| model.input ]
         , Html.br [] []
-        , Debug.toString model.parsed |> text
+        , Html.pre [] [ Debug.toString model.parsed |> text ]
         ]
 
 
