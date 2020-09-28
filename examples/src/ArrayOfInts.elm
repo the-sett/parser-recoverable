@@ -157,7 +157,8 @@ sequenceEnd ender ws parseItem sep trailing noMatchProb forwardProb =
         chompRest item =
             case trailing of
                 Forbidden ->
-                    loop [ item ] (sequenceEndForbidden ender ws parseItem sep noMatchProb forwardProb)
+                    loop [ Just item ] (sequenceEndForbidden ender ws parseItem sep noMatchProb forwardProb)
+                        |> PR.map Maybe.Extra.values
 
                 Optional ->
                     loop [ item ] (sequenceEndOptional ender ws parseItem sep)
@@ -185,23 +186,25 @@ sequenceEndForbidden :
     -> Parser c x ()
     -> x
     -> (String -> String -> x)
-    -> List a
-    -> Parser c x (Step (List a) (List a))
+    -> List (Maybe a)
+    -> Parser c x (Step (List (Maybe a)) (List (Maybe a)))
 sequenceEndForbidden ender ws parseItem sep noMatchProb forwardProb revItems =
     succeed identity
         |> ignore ws
         |> keep
             (oneOf
-                [ succeed identity
-                    |> ignore sep
-                    |> ignore ws
-                    |> keep parseItem
-                    |> map (\item -> Loop (item :: revItems))
-                , ender
+                [ ender
                     |> map (\_ -> Done (List.reverse revItems))
+                , succeed (\item -> item :: revItems |> PR.Loop)
+                    |> PR.keep
+                        (succeed Just
+                            |> ignore sep
+                            |> ignore ws
+                            |> keep parseItem
+                            |> PR.forward Nothing [ "," ] noMatchProb forwardProb
+                        )
                 ]
             )
-        |> PR.forwardOrSkip (Done (List.reverse revItems)) [ ",", "]" ] noMatchProb forwardProb
 
 
 sequenceEndOptional :
