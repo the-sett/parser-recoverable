@@ -53,12 +53,15 @@ The available recovery tactics are:
 
 * `optional` - This tactic may be associated with a small parser, such as
 `symbol`. If the expected thing is missing from the input, it will be silently
-skipped. The `examples/src/OptionalCommas.elm` example demonstrates this.
+skipped.
+
+    The `examples/src/OptionalCommas.elm` example demonstrates this.
 
 * `skip` - This tactic may be associated with a small parser, such as
 `symbol`. If the expected thing is missing from the input, it will be skipped
-over but an error will also be added to a `Partial` outcome. The
-`examples/src/WarnCommas.elm` example demonstrates this.
+over but an error will also be added to a `Partial` outcome.
+
+    The `examples/src/WarnCommas.elm` example demonstrates this.
 
 * `forward` - This tactic is usually associated with a larger piece of parsing
 logic. When it encounters an error, it will attempt to fast-forward to one of a
@@ -68,7 +71,9 @@ error added to a `Partial` result, then resume parsing from that point.
 * `forwardOrSkip` - This tactic first tries to do a `forward` and if that
 fails, does a `skip` after the skipped text. The parser will then continue
 at that point. Often the `end` token will have been reached after a failed
-forward. The `examples/src/ListOfInts.elm` example demonstrates this.
+forward so parsing will finish there by skipping the missing token.
+
+    The `examples/src/ListOfInts.elm` example demonstrates this.
 
 # Use Cases
 
