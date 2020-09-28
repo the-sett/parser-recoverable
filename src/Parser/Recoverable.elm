@@ -814,7 +814,7 @@ in the event of an error and succesful recovery.
 -}
 skip : a -> x -> Parser c x a -> Parser c x a
 skip val prob parser =
-    PA.oneOf
+    oneOf
         [ parser
         , partial val prob
         ]
@@ -849,20 +849,15 @@ forward val matches noMatchProb chompedProb parser =
                             (chompedProb res.discarded res.sentinal)
 
                     else
-                        failureAt ( res.row, res.col )
-                            noMatchProb
+                        failure noMatchProb
                 )
         ]
+        |> PA.map (Debug.log "forward")
 
 
 {-| When parsing fails, attempt to fast-forward to one of a set of sentinal tokens,
 or if none can be found, skip over the failure. When this happens an error is
-added to a `Partial` result. This is equivalent to doing a `forward` and then a
-`skip`:
-
-    forwardOrSkip val matches noMatchProb chompedProb parser =
-        forward val matches noMatchProb chompedProb parser
-            |> skip val noMatchProb
+added to a `Partial` result.
 
 Note that the `chompedProb` argument has the type `(String -> String -> x)`.
 This is called with the string being skipped over, and the matched token being
@@ -875,24 +870,27 @@ in the event of an error and succesful recovery.
 -}
 forwardOrSkip : a -> List String -> x -> (String -> String -> x) -> Parser c x a -> Parser c x a
 forwardOrSkip val matches noMatchProb chompedProb parser =
-    -- PA.oneOf
-    --     [ PA.backtrackable parser
-    --     , chompTillToken matches noMatchProb
-    --         |> PA.andThen
-    --             (\res ->
-    --                 if res.matched then
-    --                     partialAt ( res.row, res.col )
-    --                         val
-    --                         (chompedProb res.discarded res.sentinal)
-    --
-    --                 else
-    --                     partialAt ( res.row, res.col )
-    --                         val
-    --                         noMatchProb
-    --             )
-    --     ]
-    forward val matches noMatchProb chompedProb parser
-        |> skip val noMatchProb
+    PA.oneOf
+        [ PA.backtrackable parser
+        , chompTillToken matches noMatchProb
+            |> PA.andThen
+                (\res ->
+                    if res.matched then
+                        partialAt ( res.row, res.col )
+                            val
+                            (chompedProb res.discarded res.sentinal)
+
+                    else if res.discarded == "" then
+                        partialAt ( res.row, res.col )
+                            val
+                            noMatchProb
+
+                    else
+                        partialAt ( res.row, res.col )
+                            val
+                            (chompedProb res.discarded res.sentinal)
+                )
+        ]
 
 
 {-| When parsing fails, backtrack, then attempt to fast-forward to one of a set
@@ -989,7 +987,11 @@ chompTillToken tokens prob =
             PA.loop ""
                 (\discardAccum ->
                     PA.succeed
-                        (\( row, col ) discarded ( matched, sentinal ) ->
+                        (\( row, col ) discardStep ( matched, sentinal ) ->
+                            let
+                                discarded =
+                                    discardAccum ++ discardStep
+                            in
                             if matched then
                                 PA.Done
                                     { matched = matched
@@ -998,8 +1000,9 @@ chompTillToken tokens prob =
                                     , row = row
                                     , col = col
                                     }
+                                    |> Debug.log "chompTillToken - matched"
 
-                            else if discarded == "" then
+                            else if discardStep == "" then
                                 PA.Done
                                     { matched = matched
                                     , discarded = discarded
@@ -1007,12 +1010,14 @@ chompTillToken tokens prob =
                                     , row = row
                                     , col = col
                                     }
+                                    |> Debug.log "chompTillToken - discarded \"\""
 
                             else
-                                discardAccum ++ discarded |> PA.Loop
+                                PA.Loop discarded
+                                    |> Debug.log "chompTillToken - looping"
                         )
                         |= PA.getPosition
-                        |= (PA.chompWhile (\c -> not <| List.member (Debug.log "skipping" c) chars)
+                        |= (PA.chompWhile (\c -> not <| List.member c chars)
                                 |> PA.getChompedString
                            )
                         |= PA.oneOf
@@ -1037,6 +1042,7 @@ partial val prob =
                 val
         )
         |= PA.getPosition
+        |> PA.map (Debug.log "partial")
 
 
 partialAt : ( Int, Int ) -> a -> x -> PA.Parser c x (Outcome c x a)
@@ -1057,6 +1063,12 @@ failure prob =
     PA.problem prob
 
 
+{-| This may be a bad idea, as it does not really produce a PA.problem.
+
+The parser succeeds with a Failure, which will not trigger trying other options
+in a PA.oneOf.
+
+-}
 failureAt : ( Int, Int ) -> x -> PA.Parser c x (Outcome c x a)
 failureAt ( row, col ) prob =
     Failure
