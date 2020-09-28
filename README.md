@@ -66,7 +66,9 @@ list of *sentinal* tokens, consume that token, report the skipped text as an
 error added to a `Partial` result, then resume parsing from that point.
 
 * `forwardOrSkip` - This tactic first tries to do a `forward` and if that
-fails, does `skip`.
+fails, does a `skip` after the skipped text. The parser will then continue
+at that point. Often the `end` token will have been reached after a failed
+forward. The `examples/src/ListOfInts.elm` example demonstrates this.
 
 # Use Cases
 

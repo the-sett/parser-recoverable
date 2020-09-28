@@ -38,7 +38,7 @@ update msg model =
 view : Model -> Html Msg
 view model =
     div []
-        [ Html.text "Try entering some integers and non-integers separated by spaces."
+        [ Html.text "Try entering some integers separated by spaces."
         , Html.br [] []
         , Html.input [ onInput NewInput ] [ text <| model.input ]
         , Html.br [] []
