@@ -406,6 +406,20 @@ andThen fn parserA =
 -}
 oneOf : List (Parser c x a) -> Parser c x a
 oneOf options =
+    -- If the parser succeeds with a Failure, which will not trigger trying other
+    -- options in a PA.oneOf.
+    --
+    -- To get around this, there may need to be an internal `Outcome` type:
+    --
+    -- type OutcomeInternal c x a
+    --     = SuccessInternal a
+    --     | PartialInternal (List (DeadEnd c x)) a
+    --     | FailInternal x
+    --
+    -- That would allow single failures to be promoted to real PA.problems.
+    --
+    -- Or just drop FailInternal and always use PA.problem? That would simplify
+    -- internal logic on `map` and `andThen` and so on?
     PA.oneOf options
 
 
@@ -861,8 +875,9 @@ added to a `Partial` result.
 
 Note that the `chompedProb` argument has the type `(String -> String -> x)`.
 This is called with the string being skipped over, and the matched token being
-consumed. This information will be combined with its position in the input text,
-in the error added to the `Partial` result.
+consumed. If no match is found, then `""` will be given as the token consumed.
+This information will be combined with its position in the input text, in the
+error added to the`Partial` result.
 
 A default value for `a` must be given, so that the parser can return something
 in the event of an error and succesful recovery.
@@ -893,20 +908,7 @@ forwardOrSkip val matches noMatchProb chompedProb parser =
         ]
 
 
-{-| When parsing fails, backtrack, then attempt to fast-forward to one of a set
-of sentinal tokens.
-
-If a sentinal token is found, restart the parser just after it,
-and continue with an error added to a `Partial` result.
-
-If no characters are consumed when attempting to fast-forward, the recovery is
-not making any progress, so no sentinal token will be found. When this happens,
-fail with the specified 'no match' problem. This prevents this tactic from
-infinite looping.
-
-Note that no default value for `a` is needed with this recovery tactic. This
-tactic will retry until it succeeds or fails altogether.
-
+{-| Not exposed, but use this as a starting point for recoverable sequences?
 -}
 forwardThenRetry : List String -> x -> (String -> String -> x) -> Parser c x a -> Parser c x a
 forwardThenRetry matches noMatchProb chompedProb parser =
@@ -1061,24 +1063,6 @@ partialAt ( row, col ) val prob =
 failure : x -> PA.Parser c x (Outcome c x a)
 failure prob =
     PA.problem prob
-
-
-{-| This may be a bad idea, as it does not really produce a PA.problem.
-
-The parser succeeds with a Failure, which will not trigger trying other options
-in a PA.oneOf.
-
--}
-failureAt : ( Int, Int ) -> x -> PA.Parser c x (Outcome c x a)
-failureAt ( row, col ) prob =
-    Failure
-        [ { row = row
-          , col = col
-          , problem = prob
-          , contextStack = []
-          }
-        ]
-        |> PA.succeed
 
 
 values : List (Maybe a) -> List a
