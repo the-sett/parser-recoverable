@@ -112,34 +112,31 @@ sequence =
 
 
 --- === === === ===
+--
+-- Sequence is: Start ( WS Val WS Sep )* End
+--
+-- Error during this - Fast forward to Sep or End
+--
 -- Sequence like []
 -- FOM -> Success
 --
--- Sequence like [1]
+-- Sequence like [1] OR [1,..,N]
 -- FO -> Success
 -- M -> Partial (Skipped Separator)
 --
--- Sequence like [X]
--- FO -> Partial (Empty list, skipped X)
--- M -> Partial (Empty list, skipped X)
+-- Sequence like [X] OR [1,..,N,X]
+-- FO -> Partial (list, skipped X)
+-- M -> Partial (list, skipped X)
 --  AND Partial (Skipped Separator)
 --
--- Sequence like [1,]
+-- Sequence like [1,] OR [1,..,N,]
 -- F -> Partial (Fast Forward Separator)
 -- MO -> Success
 --
--- Sequence like [X,]
--- F -> Partial (Empty list, skipped X)
+-- Sequence like [X,] OR [1,..,N,X,]
+-- F -> Partial (list, skipped X)
 --  AND Partial (FastForward Separator)
--- MO -> Partial (Empty list, skipped X)
---
--- Sequence like [1,..,N]
---
--- Sequence like [1,..,N,X]
---
--- Sequence like [1,..,N,]
---
--- Sequence like [1,..,N,X,]
+-- MO -> Partial (list, skipped X)
 --
 
 
