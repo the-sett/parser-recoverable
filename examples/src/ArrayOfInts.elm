@@ -195,13 +195,21 @@ sequenceEndForbidden ender ws parseItem sep noMatchProb forwardProb revItems =
             (oneOf
                 [ ender
                     |> map (\_ -> Done (List.reverse revItems))
-                , succeed (\item -> item :: revItems |> PR.Loop)
+                , succeed
+                    (\( item, cont ) ->
+                        case cont of
+                            True ->
+                                item :: revItems |> PR.Loop
+
+                            False ->
+                                item :: revItems |> PR.Done
+                    )
                     |> PR.keep
                         (succeed Just
                             |> ignore sep
                             |> ignore ws
                             |> keep parseItem
-                            |> PR.forward Nothing [ "," ] noMatchProb forwardProb
+                            |> forwardToSepOrEnd Nothing [ "," ] [ "]" ] noMatchProb forwardProb
                         )
                 ]
             )
@@ -254,3 +262,159 @@ sequenceEndMandatory ws parseItem sep revItems =
         , succeed ()
             |> map (\_ -> Done (List.reverse revItems) |> Debug.log "mandatory end")
         ]
+
+
+forwardToSepOrEnd :
+    a
+    -> List String
+    -> List String
+    -> x
+    -> (String -> String -> x)
+    -> Parser c x a
+    -> Parser c x ( a, Bool )
+forwardToSepOrEnd val matches endMatches noMatchProb chompedProb prser =
+    PA.oneOf
+        [ PA.backtrackable prser |> PR.map (\res -> ( res, True ))
+        , chompTillSepOrEnd matches endMatches noMatchProb noMatchProb
+            |> PA.andThen
+                (\res ->
+                    case res.matched of
+                        FFCont ->
+                            partialAt ( res.row, res.col )
+                                ( val, True )
+                                (chompedProb res.discarded res.sentinal)
+
+                        FFEnd ->
+                            partialAt ( res.row, res.col )
+                                ( val, False )
+                                (chompedProb res.discarded res.sentinal)
+
+                        FFNone ->
+                            PA.problem noMatchProb
+                )
+        ]
+        |> PA.map (Debug.log "forward")
+
+
+type FFMatch
+    = FFCont
+    | FFEnd
+    | FFNone
+
+
+type alias FastForward =
+    { matched : FFMatch
+    , discarded : String
+    , sentinal : String
+    , row : Int
+    , col : Int
+    }
+
+
+chompTillSepOrEnd :
+    List String
+    -> List String
+    -> x
+    -> x
+    -> PA.Parser c x FastForward
+chompTillSepOrEnd tokens endTokens prob endProb =
+    let
+        chars =
+            List.map (\val -> String.uncons val |> Maybe.map Tuple.first) (tokens ++ endTokens)
+                |> values
+
+        tokenParsers =
+            List.map (\val -> PA.token (PA.Token val prob) |> PA.getChompedString) tokens
+
+        endTokenParsers =
+            List.map (\val -> PA.token (PA.Token val prob) |> PA.getChompedString) endTokens
+    in
+    case chars of
+        [] ->
+            PA.problem prob
+
+        _ ->
+            PA.loop ""
+                (\discardAccum ->
+                    PA.succeed
+                        (\( row, col ) discardStep ( matched, sentinal ) ->
+                            let
+                                discarded =
+                                    discardAccum ++ discardStep
+                            in
+                            case matched of
+                                FFCont ->
+                                    PA.Done
+                                        { matched = matched
+                                        , discarded = discarded
+                                        , sentinal = sentinal
+                                        , row = row
+                                        , col = col
+                                        }
+                                        |> Debug.log "chompTillSepOrEnd - FFCont matched"
+
+                                FFEnd ->
+                                    PA.Done
+                                        { matched = matched
+                                        , discarded = discarded
+                                        , sentinal = sentinal
+                                        , row = row
+                                        , col = col
+                                        }
+                                        |> Debug.log "chompTillSepOrEnd - FFEnd matched"
+
+                                FFNone ->
+                                    if discardStep == "" then
+                                        PA.Done
+                                            { matched = matched
+                                            , discarded = discarded
+                                            , sentinal = sentinal
+                                            , row = row
+                                            , col = col
+                                            }
+                                            |> Debug.log "chompTillSepOrEnd - FFNone discarded \"\""
+
+                                    else
+                                        PA.Loop discarded
+                                            |> Debug.log "chompTillSepOrEnd - FFNone looping"
+                        )
+                        |= PA.getPosition
+                        |= (PA.chompWhile (\c -> not <| List.member c chars)
+                                |> PA.getChompedString
+                           )
+                        |= PA.oneOf
+                            [ PA.succeed (\chompedString -> ( FFEnd, chompedString ))
+                                |= PA.oneOf endTokenParsers
+                            , PA.succeed (\chompedString -> ( FFCont, chompedString ))
+                                |= PA.oneOf tokenParsers
+                            , PA.succeed ( FFNone, "" )
+                            ]
+                )
+
+
+partialAt : ( Int, Int ) -> a -> x -> PA.Parser c x (Outcome c x a)
+partialAt ( row, col ) val prob =
+    Partial
+        [ { row = row
+          , col = col
+          , problem = prob
+          , contextStack = []
+          }
+        ]
+        val
+        |> PA.succeed
+
+
+values : List (Maybe a) -> List a
+values maybeList =
+    List.foldr
+        (\maybeVal accum ->
+            case maybeVal of
+                Just val ->
+                    val :: accum
+
+                Nothing ->
+                    accum
+        )
+        []
+        maybeList
