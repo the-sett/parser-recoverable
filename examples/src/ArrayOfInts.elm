@@ -112,6 +112,35 @@ sequence =
 
 
 --- === === === ===
+-- Sequence like []
+-- FOM -> Success
+--
+-- Sequence like [1]
+-- FO -> Success
+-- M -> Partial (Skipped Separator)
+--
+-- Sequence like [X]
+-- FO -> Partial (Empty list, skipped X)
+-- M -> Partial (Empty list, skipped X)
+--  AND Partial (Skipped Separator)
+--
+-- Sequence like [1,]
+-- F -> Partial (Fast Forward Separator)
+-- MO -> Success
+--
+-- Sequence like [X,]
+-- F -> Partial (Empty list, skipped X)
+--  AND Partial (FastForward Separator)
+-- MO -> Partial (Empty list, skipped X)
+--
+-- Sequence like [1,..,N]
+--
+-- Sequence like [1,..,N,X]
+--
+-- Sequence like [1,..,N,]
+--
+-- Sequence like [1,..,N,X,]
+--
 
 
 sequenceRec :
