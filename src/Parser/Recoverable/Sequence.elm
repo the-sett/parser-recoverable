@@ -85,12 +85,12 @@ sequence seq =
                             |> PR.keep PR.getPosition
                             |> PR.ignore (PR.symbol seq.separator seq.separatorProb)
                             |> PR.ignore seq.spaces
-                            |> PR.ignore (PR.symbol seq.end seq.endProb)
+                            |> PR.ignore endParser
                             |> PR.backtrackable
                             |> PR.andThen (\pos -> partialAt pos False seq.endProb)
                         , PR.succeed False
                             |> PR.ignore seq.spaces
-                            |> PR.ignore (PR.symbol seq.end seq.endProb)
+                            |> PR.ignore endParser
                             |> PR.backtrackable
                         , PR.succeed True
                             |> PR.ignore (PR.symbol seq.separator seq.separatorProb)
@@ -101,7 +101,7 @@ sequence seq =
                         [ PR.succeed False
                             |> PR.ignore (PR.symbol seq.separator seq.separatorProb |> PRT.optional ())
                             |> PR.ignore seq.spaces
-                            |> PR.ignore (PR.symbol seq.end seq.endProb)
+                            |> PR.ignore endParser
                             |> PR.backtrackable
                         , PR.succeed True
                             |> PR.ignore (PR.symbol seq.separator seq.separatorProb)
@@ -112,7 +112,7 @@ sequence seq =
                         [ PR.succeed False
                             |> PR.ignore (PR.symbol seq.separator seq.separatorProb |> PRT.skip () seq.separatorProb)
                             |> PR.ignore seq.spaces
-                            |> PR.ignore (PR.symbol seq.end seq.endProb)
+                            |> PR.ignore endParser
                             |> PR.backtrackable
                         , PR.succeed True
                             |> PR.ignore (PR.symbol seq.separator seq.separatorProb)
