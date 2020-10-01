@@ -587,7 +587,7 @@ sequenceEndMandatory ws parseItem sep revItems =
             |> ignore ws
             |> map (\item -> Loop (item :: revItems))
         , succeed ()
-            |> map (\_ -> Done (List.reverse revItems) |> Debug.log "mandatory end")
+            |> map (\_ -> Done (List.reverse revItems))
         ]
 
 

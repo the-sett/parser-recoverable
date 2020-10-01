@@ -101,7 +101,6 @@ forward val matches noMatchProb chompedProb parser =
                         failure noMatchProb
                 )
         ]
-        |> PA.map (Debug.log "forward")
 
 
 {-| When parsing fails, attempt to fast-forward to one of a set of sentinal tokens,
@@ -237,7 +236,6 @@ chompTillToken tokens prob =
                                     , row = row
                                     , col = col
                                     }
-                                    |> Debug.log "chompTillToken - matched"
 
                             else if discardStep == "" then
                                 PA.Done
@@ -247,11 +245,9 @@ chompTillToken tokens prob =
                                     , row = row
                                     , col = col
                                     }
-                                    |> Debug.log "chompTillToken - discarded \"\""
 
                             else
                                 PA.Loop discarded
-                                    |> Debug.log "chompTillToken - looping"
                         )
                         |= PA.getPosition
                         |= (PA.chompWhile (\c -> not <| List.member c chars)

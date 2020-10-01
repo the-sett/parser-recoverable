@@ -45,7 +45,6 @@ partial val prob =
                 val
         )
         |= PA.getPosition
-        |> PA.map (Debug.log "partial")
 
 
 partialAt : ( Int, Int ) -> a -> x -> PA.Parser c x (Outcome c x a)

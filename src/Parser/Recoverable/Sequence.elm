@@ -130,13 +130,6 @@ sequence seq =
                             |> PR.map (\_ -> PR.Done (List.reverse vals))
                         , PR.succeed
                             (\( ( val, cont1 ), cont2 ) ->
-                                let
-                                    _ =
-                                        Debug.log "cont1" cont1
-
-                                    _ =
-                                        Debug.log "cont2" cont2
-                                in
                                 case cont1 && cont2 of
                                     True ->
                                         val :: vals |> PR.Loop
@@ -192,7 +185,6 @@ forwardToSepOrEnd val matches endMatches noMatchProb chompedProb prser =
                                 (chompedProb res.discarded res.sentinal)
                 )
         ]
-        |> PA.map (Debug.log "forward")
 
 
 type FFMatch
@@ -250,7 +242,6 @@ chompTillSepOrEnd tokens endTokens prob endProb =
                                         , row = row
                                         , col = col
                                         }
-                                        |> Debug.log "chompTillSepOrEnd - FFCont matched"
 
                                 FFEnd ->
                                     PA.Done
@@ -260,7 +251,6 @@ chompTillSepOrEnd tokens endTokens prob endProb =
                                         , row = row
                                         , col = col
                                         }
-                                        |> Debug.log "chompTillSepOrEnd - FFEnd matched"
 
                                 FFNone ->
                                     if discardStep == "" then
@@ -271,11 +261,9 @@ chompTillSepOrEnd tokens endTokens prob endProb =
                                             , row = row
                                             , col = col
                                             }
-                                            |> Debug.log "chompTillSepOrEnd - FFNone discarded \"\""
 
                                     else
                                         PA.Loop discarded
-                                            |> Debug.log "chompTillSepOrEnd - FFNone looping"
                         )
                         |= PA.getPosition
                         |= (PA.chompWhile (\c -> not <| List.member c chars)
