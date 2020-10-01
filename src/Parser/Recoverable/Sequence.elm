@@ -25,6 +25,9 @@ import Parser.Recoverable.Tactics as PRT
 -- Sequence like [...
 -- FOM -> Partial (Skipped End)
 --
+-- Sequence like [...X
+-- FOM -> Partial (Skipped End)
+--
 -- Sequence like [1] OR [1,..,N]
 -- FO -> Success
 -- M -> Partial (Skipped Separator)
@@ -184,7 +187,9 @@ forwardToSepOrEnd val matches endMatches noMatchProb chompedProb prser =
                                 (chompedProb res.discarded res.sentinal)
 
                         FFNone ->
-                            PA.problem noMatchProb
+                            partialAt ( res.row, res.col )
+                                ( val, False )
+                                (chompedProb res.discarded res.sentinal)
                 )
         ]
         |> PA.map (Debug.log "forward")
