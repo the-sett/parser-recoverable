@@ -167,16 +167,46 @@ sequenceLoop seq =
                 , PR.end seq.endProb |> PR.andThen (\() -> partial () seq.endProb)
                 ]
 
-        separatorParser =
-            PR.oneOf
-                [ PR.succeed False
-                    |> PR.ignore (PR.symbol seq.separator seq.separatorProb)
-                    |> PR.ignore seq.spaces
-                    |> PR.ignore (PR.symbol seq.end seq.endProb)
-                    |> PR.backtrackable
-                , PR.succeed True
-                    |> PR.ignore (PR.symbol seq.separator seq.separatorProb |> PR.skip () seq.separatorProb)
-                ]
+        sepOrEndParser =
+            case seq.trailing of
+                Forbidden ->
+                    PR.oneOf
+                        [ PR.succeed identity
+                            |> PR.keep PR.getPosition
+                            |> PR.ignore (PR.symbol seq.separator seq.separatorProb)
+                            |> PR.ignore seq.spaces
+                            |> PR.ignore (PR.symbol seq.end seq.endProb)
+                            |> PR.backtrackable
+                            |> PR.andThen (\pos -> partialAt pos False seq.endProb)
+                        , PR.succeed False
+                            |> PR.ignore seq.spaces
+                            |> PR.ignore (PR.symbol seq.end seq.endProb)
+                            |> PR.backtrackable
+                        , PR.succeed True
+                            |> PR.ignore (PR.symbol seq.separator seq.separatorProb)
+                        ]
+
+                Optional ->
+                    PR.oneOf
+                        [ PR.succeed False
+                            |> PR.ignore (PR.symbol seq.separator seq.separatorProb |> PR.optional ())
+                            |> PR.ignore seq.spaces
+                            |> PR.ignore (PR.symbol seq.end seq.endProb)
+                            |> PR.backtrackable
+                        , PR.succeed True
+                            |> PR.ignore (PR.symbol seq.separator seq.separatorProb)
+                        ]
+
+                Mandatory ->
+                    PR.oneOf
+                        [ PR.succeed False
+                            |> PR.ignore (PR.symbol seq.separator seq.separatorProb |> PR.skip () seq.separatorProb)
+                            |> PR.ignore seq.spaces
+                            |> PR.ignore (PR.symbol seq.end seq.endProb)
+                            |> PR.backtrackable
+                        , PR.succeed True
+                            |> PR.ignore (PR.symbol seq.separator seq.separatorProb)
+                        ]
 
         loopParser =
             PR.loop []
@@ -206,7 +236,7 @@ sequenceLoop seq =
                                     |> PR.ignore seq.spaces
                                     |> PR.keep (seq.item |> PR.map Just)
                                     |> PR.ignore seq.spaces
-                                    |> PR.keep separatorParser
+                                    |> PR.keep sepOrEndParser
                                     |> forwardToSepOrEnd ( Nothing, True ) [ seq.separator ] [ seq.end ] seq.separatorProb seq.forwardProb
                                 )
                         ]
