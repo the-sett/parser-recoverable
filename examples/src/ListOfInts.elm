@@ -6,6 +6,7 @@ import Html.Events exposing (onClick, onInput)
 import Maybe.Extra
 import Parser.Advanced as PA exposing ((|.), (|=))
 import Parser.Recoverable as PR exposing (Outcome(..))
+import Parser.Recoverable.Tactics as PRT
 
 
 type alias Model =
@@ -91,7 +92,7 @@ loop =
                             |> PR.ignore PR.spaces
                             |> PR.keep (PR.int ExpectingInt InvalidNumber |> PR.map Just)
                             |> PR.ignore PR.spaces
-                            |> PR.forwardOrSkip Nothing [ " " ] ExpectingSpace Discarded
+                            |> PRT.forwardOrSkip Nothing [ " " ] ExpectingSpace Discarded
                         )
                 ]
         )
