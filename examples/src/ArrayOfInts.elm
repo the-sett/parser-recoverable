@@ -96,7 +96,7 @@ parser =
 
 sequence : PR.Parser Never Problem (List Int)
 sequence =
-    sequenceRec
+    sequenceLoop
         { start = "["
         , startProb = ExpectingLSqBracket
         , separator = ","
@@ -140,7 +140,7 @@ sequence =
 --
 
 
-sequenceRec :
+sequenceLoop :
     { start : String
     , startProb : x
     , separator : String
@@ -153,141 +153,48 @@ sequenceRec :
     , trailing : Trailing
     }
     -> Parser c x (List a)
-sequenceRec seqDef =
-    succeed identity
-        |> ignore (token seqDef.start seqDef.startProb)
-        |> ignore seqDef.spaces
-        |> keep
-            (sequenceEnd
-                (token seqDef.end seqDef.endProb)
-                seqDef.spaces
-                seqDef.item
-                (token seqDef.separator seqDef.separatorProb)
-                seqDef.trailing
-                seqDef.separatorProb
-                seqDef.forwardProb
-            )
-
-
-sequenceEnd :
-    Parser c x ()
-    -> Parser c x ()
-    -> Parser c x a
-    -> Parser c x ()
-    -> Trailing
-    -> x
-    -> (String -> String -> x)
-    -> Parser c x (List a)
-sequenceEnd ender ws parseItem sep trailing noMatchProb forwardProb =
+sequenceLoop seq =
     let
-        chompRest item =
-            case trailing of
-                Forbidden ->
-                    loop [ Just item ] (sequenceEndForbidden ender ws parseItem sep noMatchProb forwardProb)
-                        |> PR.map Maybe.Extra.values
+        startParser =
+            PR.symbol seq.start seq.startProb
 
-                Optional ->
-                    loop [ item ] (sequenceEndOptional ender ws parseItem sep)
-
-                Mandatory ->
-                    succeed identity
-                        |> ignore ws
-                        |> ignore sep
-                        |> ignore ws
-                        |> keep (loop [ item ] (sequenceEndMandatory ws parseItem sep))
-                        |> ignore ender
-    in
-    oneOf
-        [ parseItem
-            |> andThen chompRest
-        , ender
-            |> map (\_ -> [])
-        ]
-
-
-sequenceEndForbidden :
-    Parser c x ()
-    -> Parser c x ()
-    -> Parser c x a
-    -> Parser c x ()
-    -> x
-    -> (String -> String -> x)
-    -> List (Maybe a)
-    -> Parser c x (Step (List (Maybe a)) (List (Maybe a)))
-sequenceEndForbidden ender ws parseItem sep noMatchProb forwardProb revItems =
-    succeed identity
-        |> ignore ws
-        |> keep
-            (oneOf
-                [ ender
-                    |> map (\_ -> Done (List.reverse revItems))
-                , succeed
-                    (\( item, cont ) ->
-                        case cont of
-                            True ->
-                                item :: revItems |> PR.Loop
-
-                            False ->
-                                item :: revItems |> PR.Done
-                    )
-                    |> PR.keep
-                        (succeed Just
-                            |> ignore sep
-                            |> ignore ws
-                            |> keep parseItem
-                            |> forwardToSepOrEnd Nothing [ "," ] [ "]" ] noMatchProb forwardProb
-                        )
+        endParser =
+            PR.oneOf
+                [ PR.symbol seq.end seq.endProb
+                , PR.end seq.endProb |> PR.andThen (\() -> partial () seq.endProb)
                 ]
-            )
 
+        loopParser =
+            PR.loop []
+                (\vals ->
+                    PR.oneOf
+                        [ PR.succeed ()
+                            |> PR.ignore endParser
+                            |> PR.map (\_ -> PR.Done (List.reverse vals))
+                        , PR.succeed
+                            (\( val, cont ) ->
+                                case cont of
+                                    True ->
+                                        val :: vals |> PR.Loop
 
-sequenceEndOptional :
-    Parser c x ()
-    -> Parser c x ()
-    -> Parser c x a
-    -> Parser c x ()
-    -> List a
-    -> Parser c x (Step (List a) (List a))
-sequenceEndOptional ender ws parseItem sep revItems =
-    let
-        parseEnd =
-            map (\_ -> Done (List.reverse revItems)) ender
+                                    False ->
+                                        val :: vals |> PR.Done
+                            )
+                            |> PR.keep
+                                (PR.succeed identity
+                                    |> PR.ignore seq.spaces
+                                    |> PR.keep (seq.item |> PR.map Just)
+                                    |> PR.ignore seq.spaces
+                                    |> PR.ignore (PR.symbol seq.separator seq.separatorProb |> PR.skip () seq.separatorProb)
+                                    |> forwardToSepOrEnd Nothing [ seq.separator ] [ seq.end ] seq.separatorProb seq.forwardProb
+                                )
+                        ]
+                )
+                |> PR.map Maybe.Extra.values
     in
-    succeed identity
-        |> ignore ws
-        |> keep
-            (oneOf
-                [ succeed identity
-                    |> ignore sep
-                    |> ignore ws
-                    |> keep
-                        (oneOf
-                            [ parseItem |> map (\item -> Loop (item :: revItems))
-                            , parseEnd
-                            ]
-                        )
-                , parseEnd
-                ]
-            )
-
-
-sequenceEndMandatory :
-    Parser c x ()
-    -> Parser c x a
-    -> Parser c x ()
-    -> List a
-    -> Parser c x (Step (List a) (List a))
-sequenceEndMandatory ws parseItem sep revItems =
-    oneOf
-        [ succeed identity
-            |> keep parseItem
-            |> ignore ws
-            |> ignore sep
-            |> ignore ws
-            |> map (\item -> Loop (item :: revItems))
-        , succeed ()
-            |> map (\_ -> Done (List.reverse revItems) |> Debug.log "mandatory end")
-        ]
+    PR.succeed identity
+        |> PR.ignore startParser
+        |> PR.keep loopParser
 
 
 forwardToSepOrEnd :
@@ -429,6 +336,23 @@ partialAt ( row, col ) val prob =
         ]
         val
         |> PA.succeed
+
+
+partial : a -> x -> PA.Parser c x (Outcome c x a)
+partial val prob =
+    PA.succeed
+        (\( row, col ) ->
+            Partial
+                [ { row = row
+                  , col = col
+                  , problem = prob
+                  , contextStack = []
+                  }
+                ]
+                val
+        )
+        |= PA.getPosition
+        |> PA.map (Debug.log "partial")
 
 
 values : List (Maybe a) -> List a
