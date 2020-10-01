@@ -167,6 +167,17 @@ sequenceLoop seq =
                 , PR.end seq.endProb |> PR.andThen (\() -> partial () seq.endProb)
                 ]
 
+        separatorParser =
+            PR.oneOf
+                [ PR.succeed False
+                    |> PR.ignore (PR.symbol seq.separator seq.separatorProb)
+                    |> PR.ignore seq.spaces
+                    |> PR.ignore (PR.symbol seq.end seq.endProb)
+                    |> PR.backtrackable
+                , PR.succeed True
+                    |> PR.ignore (PR.symbol seq.separator seq.separatorProb |> PR.skip () seq.separatorProb)
+                ]
+
         loopParser =
             PR.loop []
                 (\vals ->
@@ -175,21 +186,28 @@ sequenceLoop seq =
                             |> PR.ignore endParser
                             |> PR.map (\_ -> PR.Done (List.reverse vals))
                         , PR.succeed
-                            (\( val, cont ) ->
-                                case cont of
+                            (\( ( val, cont1 ), cont2 ) ->
+                                let
+                                    _ =
+                                        Debug.log "cont1" cont1
+
+                                    _ =
+                                        Debug.log "cont2" cont2
+                                in
+                                case cont1 && cont2 of
                                     True ->
                                         val :: vals |> PR.Loop
 
                                     False ->
-                                        val :: vals |> PR.Done
+                                        val :: vals |> List.reverse |> PR.Done
                             )
                             |> PR.keep
-                                (PR.succeed identity
+                                (PR.succeed (\maybeItem cont -> ( maybeItem, cont ))
                                     |> PR.ignore seq.spaces
                                     |> PR.keep (seq.item |> PR.map Just)
                                     |> PR.ignore seq.spaces
-                                    |> PR.ignore (PR.symbol seq.separator seq.separatorProb |> PR.skip () seq.separatorProb)
-                                    |> forwardToSepOrEnd Nothing [ seq.separator ] [ seq.end ] seq.separatorProb seq.forwardProb
+                                    |> PR.keep separatorParser
+                                    |> forwardToSepOrEnd ( Nothing, True ) [ seq.separator ] [ seq.end ] seq.separatorProb seq.forwardProb
                                 )
                         ]
                 )
