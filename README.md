@@ -38,6 +38,9 @@ result, only a list of errors.
 
 # Recovery Tactics
 
+`Parser.Recoverable.Tactics` provides some simple recovery tactics that can
+be manually added to parsing code.
+
 The aim is to get a parser back into a position where it can continue running,
 not to attempt to correct individual tokens. For example, if the parser was
 expecting an integer but did not get one, recovering by inserting a default
@@ -45,7 +48,7 @@ value such as `0` could work, but it will likely be better if the parser skips
 ahead until it finds some place it can safely restart from, such as the next `;`,
 and report the whole expression with the missing integer value as an error.
 
-Recovery tactics  are always associated with `Parser`s, not tokens. Often a
+Recovery tactics are always associated with `Parser`s, not tokens. Often a
 recovery tactic will be associated with a larger piece of parsing logic, and
 not just an individual `Parser` building block such as `symbol` or `keyword`.
 
@@ -74,6 +77,16 @@ at that point. Often the `end` token will have been reached after a failed
 forward so parsing will finish there by skipping the missing token.
 
     The `examples/src/ListOfInts.elm` example demonstrates this.
+
+# Recoverable Sequences
+
+`Parser.Recoverable.Sequence` provides a recoverable version of `sequence`,
+that will allow errors in the sequence items, and will fast forward to the
+next separator or end token to recover.
+
+The `examples/src/ArrayOfInts.elm` example demonstrates this, and lets you
+experiment with what happens with different options for the trailing separator
+token (`Forbidden`, `Optional` or `Mandatory`).
 
 # Use Cases
 
