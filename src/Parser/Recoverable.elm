@@ -483,29 +483,28 @@ token match prob =
 {-| Just like `Parser.sequence`.
 -}
 sequence :
-    { start : ( String, x )
-    , separator : ( String, x )
-    , end : ( String, x )
+    { start : String
+    , startProb : x
+    , separator : String
+    , separatorProb : x
+    , end : String
+    , endProb : x
     , spaces : Parser c x ()
     , item : Parser c x a
     , trailing : Trailing
     }
     -> Parser c x (List a)
-sequence seqDef =
-    let
-        tokenParser ( match, prob ) =
-            token match prob
-    in
+sequence seq =
     succeed identity
-        |> ignore (tokenParser seqDef.start)
-        |> ignore seqDef.spaces
+        |> ignore (token seq.start seq.startProb)
+        |> ignore seq.spaces
         |> keep
             (sequenceEnd
-                (tokenParser seqDef.end)
-                seqDef.spaces
-                seqDef.item
-                (tokenParser seqDef.separator)
-                seqDef.trailing
+                (token seq.end seq.endProb)
+                seq.spaces
+                seq.item
+                (token seq.separator seq.separatorProb)
+                seq.trailing
             )
 
 

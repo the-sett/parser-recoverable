@@ -120,6 +120,9 @@ sequence =
 -- Sequence like []
 -- FOM -> Success
 --
+-- Sequence like [...
+-- FOM -> Partial (Skipped End)
+--
 -- Sequence like [1] OR [1,..,N]
 -- FO -> Success
 -- M -> Partial (Skipped Separator)
